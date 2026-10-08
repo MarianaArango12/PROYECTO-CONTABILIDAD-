@@ -1,0 +1,38 @@
+# Dependencias
+**/node_modules/
+
+# Variables de entorno
+**/.env
+**/.env.*
+
+# Archivos generados por Prisma
+**/generated/prisma/
+
+# Compilacion
+**/dist/
+**/build/
+
+# Logs
+**/*.log
+
+# Editores
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
+.agents/
+.claude/
+.windsurf/
+
+# Scripts temporales de pruebas
+backend/cambiar-clave-admin.js
+backend/cambiar-clave.js
+backend/cambiar-password-nomina.js
+backend/cambiar-password.cjs
+backend/crear-usuarios.js
+backend/listar-usuarios.js
+backend/prueba-empleado.js
+backend/restablecer-programador.js
+backend/verificar-admin.js

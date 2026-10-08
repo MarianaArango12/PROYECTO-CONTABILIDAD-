@@ -1,0 +1,110 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background: #f5f7fb;
+  color: #172033;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.menu-icon {
+  color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.menu-icon i {
+  color: inherit;
+}
+
+.logout-button i {
+  color: inherit;
+}
+
+.acciones-formulario button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.acciones-formulario button i {
+  font-size: 16px;
+  line-height: 1;
+  color: inherit;
+}
+/* RESULTADOS DE BÚSQUEDA DE EMPLEADOS */
+
+.resultados-empleados {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.resultado-empleado {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+
+  padding: 14px 16px;
+
+  background: #ffffff;
+  border: 1px solid #dcdcdc;
+  border-radius: 8px;
+
+  cursor: pointer;
+  text-align: left;
+
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.resultado-empleado:hover {
+  background: #f7f7f7;
+  border-color: #bdbdbd;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.resultado-empleado strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: #222222;
+}
+
+.resultado-empleado span {
+  font-size: 13px;
+  color: #666666;
+}
