@@ -64,14 +64,16 @@ export async function crearProgramacion(req, res) {
       observacion
     } = req.body;
 
-    // CAMBIO: el turno ya no es obligatorio aquí (un descanso puede ir sin turno)
+    // El turno no es obligatorio aquí:
+    // un descanso puede ir sin turno desde el formulario.
     if (!empleadoId || !fecha) {
       return res.status(400).json({
         error: 'empleadoId y fecha son obligatorios'
       });
     }
 
-    // CAMBIO: acepta tipoProgramacion o tipo (compatibilidad con el frontend)
+    // Acepta tipoProgramacion o tipo
+    // para mantener la compatibilidad con el frontend.
     const tipo = tipoProgramacion ?? req.body.tipo ?? 'TRABAJO';
 
     if (!['TRABAJO', 'DESCANSO'].includes(tipo)) {
@@ -80,7 +82,7 @@ export async function crearProgramacion(req, res) {
       });
     }
 
-    // CAMBIO: validar fecha y año (evita 0002-10-05, 0020-10-05, etc.)
+    // Validar fecha y año.
     const fechaProgramacion = new Date(fecha);
 
     if (Number.isNaN(fechaProgramacion.getTime())) {
@@ -97,7 +99,7 @@ export async function crearProgramacion(req, res) {
       });
     }
 
-    // Verificar empleado
+    // Verificar empleado.
     const empleado = await prisma.empleado.findUnique({
       where: {
         id: empleadoId
@@ -130,7 +132,7 @@ export async function crearProgramacion(req, res) {
       });
     }
 
-    // Verificar turno
+    // Verificar turno.
     const turno = await prisma.turno.findUnique({
       where: {
         id: turnoFinalId
@@ -149,7 +151,7 @@ export async function crearProgramacion(req, res) {
       });
     }
 
-    // Verificar programación existente
+    // Verificar programación existente.
     const programacionExistente =
       await prisma.programacion.findFirst({
         where: {
@@ -164,8 +166,8 @@ export async function crearProgramacion(req, res) {
       });
     }
 
-    // Preparar datos según el tipo de programación
-    // (el descanso NO guarda horas, por lo tanto no cuenta como horas ordinarias)
+    // Preparar datos según el tipo de programación.
+    // El descanso no guarda horas.
     const esDescanso = tipo === 'DESCANSO';
 
     const programacion = await prisma.programacion.create({
@@ -227,6 +229,7 @@ export async function crearProgramacion(req, res) {
     });
   }
 }
+
 
 
 export async function listarProgramaciones(req, res) {
@@ -314,7 +317,7 @@ export async function actualizarProgramacion(req, res) {
       observacion
     } = req.body;
 
-    // Buscar programación
+    // Buscar programación.
     const programacionActual =
       await prisma.programacion.findUnique({
         where: {
@@ -328,7 +331,7 @@ export async function actualizarProgramacion(req, res) {
       });
     }
 
-    // Verificar turno si se está cambiando
+    // Verificar turno si se está cambiando.
     if (turnoId) {
       const turno = await prisma.turno.findUnique({
         where: {
@@ -349,13 +352,13 @@ export async function actualizarProgramacion(req, res) {
       }
     }
 
-    // Mantener fecha actual si no se envía una nueva
+    // Mantener fecha actual si no se envía una nueva.
     let nuevaFecha = programacionActual.fecha;
 
     if (fecha) {
       nuevaFecha = new Date(fecha);
 
-      // CAMBIO: validar fecha y año
+      // Validar fecha y año.
       if (Number.isNaN(nuevaFecha.getTime())) {
         return res.status(400).json({
           error: 'Fecha no válida'
@@ -371,7 +374,7 @@ export async function actualizarProgramacion(req, res) {
       }
 
       // Verificar que no exista otra programación
-      // para el mismo empleado y fecha
+      // para el mismo empleado y fecha.
       const otraProgramacion =
         await prisma.programacion.findFirst({
           where: {
@@ -391,7 +394,7 @@ export async function actualizarProgramacion(req, res) {
       }
     }
 
-    // CAMBIO: acepta tipoProgramacion o tipo
+    // Acepta tipoProgramacion o tipo.
     const tipo =
       tipoProgramacion ??
       req.body.tipo ??
@@ -405,7 +408,7 @@ export async function actualizarProgramacion(req, res) {
 
     const esDescanso = tipo === 'DESCANSO';
 
-    // Si pasa a descanso, usa el turno interno de 0 horas
+    // Si pasa a descanso, usa el turno interno de 0 horas.
     let turnoDescansoId = null;
 
     if (esDescanso) {
@@ -413,12 +416,11 @@ export async function actualizarProgramacion(req, res) {
       turnoDescansoId = turnoDescanso.id;
     }
 
-    // Construir únicamente los campos enviados
+    // Construir únicamente los campos enviados.
     const datosActualizacion = {
       fecha: nuevaFecha,
 
-      // CAMBIO: solo se actualiza el turno si viene con valor
-      // (antes un turnoId vacío '' se guardaba tal cual)
+      // Solo se actualiza el turno si viene con valor.
       ...(esDescanso
         ? {
             turnoId: turnoDescansoId
@@ -431,7 +433,7 @@ export async function actualizarProgramacion(req, res) {
 
       tipoProgramacion: tipo,
 
-      // El descanso nunca guarda horas (no cuenta como horas ordinarias)
+      // El descanso nunca guarda horas.
       ...(esDescanso
         ? {
             horaEntrada: null,
@@ -573,7 +575,7 @@ export async function obtenerProgramacionesPorEmpleado(req, res) {
     const { empleadoId } = req.params;
     const { inicio, fin } = req.query;
 
-    // Verificar que el empleado exista
+    // Verificar que el empleado exista.
     const empleado = await prisma.empleado.findUnique({
       where: {
         id: empleadoId
@@ -587,7 +589,7 @@ export async function obtenerProgramacionesPorEmpleado(req, res) {
       });
     }
 
-    // Construir filtro
+    // Construir filtro.
     const filtroFecha = {};
 
     if (inicio) {
@@ -641,23 +643,7 @@ export async function obtenerProgramacionesPorEmpleado(req, res) {
 }
 
 
-// ======================================================
-// GENERAR PROGRAMACIONES A PARTIR DE UN PATRÓN
-// (sin cambios)
-// ======================================================
-//
-// Recibe un patrón (lista de nombres de turno que se
-// repite en ciclo) y crea una programación por cada día
-// del rango indicado.
-//
-// - Los días que ya tienen programación se omiten
-//   (no se modifica ni se borra nada existente).
-// - Los descansos se guardan como PROGRAMADO y el trabajo
-//   con el estado indicado (por defecto PROGRAMADO),
-//   porque la nómina lee DESCANSO/PROGRAMADO y
-//   TRABAJO/CUMPLIDO.
-//
-// ======================================================
+
 
 export async function generarProgramaciones(req, res) {
   try {
@@ -668,15 +654,58 @@ export async function generarProgramaciones(req, res) {
       fechaFin,
       patron,
       posicionInicial = 1,
-      estado = 'PROGRAMADO'
+      estado = 'PROGRAMADO',
+      diasTrabajo,
+      diasDescanso,
+      turnoId,
+      inicioCiclo = 'DIA'
     } = req.body;
+
+    // Aceptar tanto el patrón detallado como los datos
+    // actuales del formulario de generación automática.
+    let patronFinal = patron;
+
+    if (!Array.isArray(patronFinal) || patronFinal.length === 0) {
+      const trabajo = Number(diasTrabajo);
+      const descanso = Number(diasDescanso);
+      const idTurno = turnoId ?? req.body.turnoTrabajoId;
+
+      if (
+        !Number.isInteger(trabajo) ||
+        !Number.isInteger(descanso) ||
+        trabajo < 1 ||
+        descanso < 1 ||
+        !idTurno
+      ) {
+        return res.status(400).json({
+          error:
+            'Debe indicar los días de trabajo, los días de descanso y el turno de trabajo'
+        });
+      }
+
+      patronFinal = [
+        ...Array.from({ length: trabajo }, () => ({
+          tipo: 'TRABAJO',
+          turnoId: idTurno
+        })),
+        ...Array.from({ length: descanso }, () => ({
+          tipo: 'DESCANSO'
+        }))
+      ];
+    }
+
+    if (!['DIA', 'NOCHE', 'DESCANSO'].includes(inicioCiclo)) {
+      return res.status(400).json({
+        error: 'El inicio del ciclo debe ser DIA, NOCHE o DESCANSO'
+      });
+    }
 
     if (
       !empleadoId ||
       !fechaInicio ||
       !fechaFin ||
-      !Array.isArray(patron) ||
-      patron.length === 0
+      !Array.isArray(patronFinal) ||
+      patronFinal.length === 0
     ) {
       return res.status(400).json({
         error:
@@ -745,8 +774,8 @@ export async function generarProgramaciones(req, res) {
 
     // VALIDAR PATRÓN
 
-    for (let i = 0; i < patron.length; i++) {
-      const diaPatron = patron[i];
+    for (let i = 0; i < patronFinal.length; i++) {
+      const diaPatron = patronFinal[i];
 
       if (!diaPatron || typeof diaPatron !== 'object') {
         return res.status(400).json({
@@ -780,7 +809,7 @@ export async function generarProgramaciones(req, res) {
 
     const turnoIds = [
       ...new Set(
-        patron
+        patronFinal
           .map((dia) => dia.turnoId)
           .filter(Boolean)
       )
@@ -801,8 +830,8 @@ export async function generarProgramaciones(req, res) {
       turnoPorId[turno.id] = turno;
     }
 
-    // Verificar que todos los turnos existan
-    for (const dia of patron) {
+    // Verificar que todos los turnos existan.
+    for (const dia of patronFinal) {
       if (
         dia.tipo !== 'DESCANSO' &&
         !turnoPorId[dia.turnoId]
@@ -814,7 +843,7 @@ export async function generarProgramaciones(req, res) {
       }
     }
 
-    const necesitaDescanso = patron.some(
+    const necesitaDescanso = patronFinal.some(
       (dia) => dia.tipo === 'DESCANSO'
     );
 
@@ -825,18 +854,21 @@ export async function generarProgramaciones(req, res) {
     // CONSTRUIR PROGRAMACIONES
 
     const filas = [];
+    
+
+
+
 
     for (let i = 0; i < dias; i++) {
-
       const indicePatron =
         (
           i +
           Number(posicionInicial) -
           1
-        ) % patron.length;
+        ) % patronFinal.length;
 
       const diaPatron =
-        patron[indicePatron];
+        patronFinal[indicePatron];
 
       const esDescanso =
         diaPatron.tipo === 'DESCANSO';
@@ -891,7 +923,7 @@ export async function generarProgramaciones(req, res) {
       });
     }
 
-    // CREAR
+    // CREAR SIN DUPLICAR PROGRAMACIONES EXISTENTES
 
     const resultado =
       await prisma.programacion.createMany({
@@ -912,9 +944,11 @@ export async function generarProgramaciones(req, res) {
       omitidas:
         filas.length - resultado.count
     });
+    
+
+
 
   } catch (error) {
-
     console.error(
       'ERROR GENERANDO PROGRAMACIONES:',
       error

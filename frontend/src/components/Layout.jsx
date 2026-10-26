@@ -27,11 +27,11 @@ function Layout() {
         <div className="brand">
 
           <div className="brand-icon">
-            C
+            S
           </div>
 
           <div>
-            <h1>ContaPro</h1>
+            <h1>SIGOAR</h1>
             <span>Sistema contable</span>
           </div>
 

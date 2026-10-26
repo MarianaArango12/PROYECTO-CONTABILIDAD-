@@ -10,6 +10,9 @@ import {
   generarProgramaciones
 } from '../controllers/programacion.controller.js';
 
+// NUEVO: generación masiva de programaciones
+import { generarMasivoHandler } from '../services/programacionMasiva.service.js';
+
 import { verificarToken } from '../middlewares/auth.middleware.js';
 import { verificarRol } from '../middlewares/role.middleware.js';
 
@@ -35,6 +38,17 @@ router.post(
   verificarToken,
   verificarRol('Administrador', 'Programador'),
   generarProgramaciones
+);
+
+
+//GENERAR PROGRAMACIONES MASIVAS (VARIOS EMPLEADOS, CON VISTA PREVIA)
+//Administrador y Programador
+
+router.post(
+  '/generar-masivo',
+  verificarToken,
+  verificarRol('Administrador', 'Programador'),
+  generarMasivoHandler
 );
 
 router.get(

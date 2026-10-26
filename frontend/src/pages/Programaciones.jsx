@@ -10,6 +10,9 @@ import {
   cambiarEstadoProgramacion,
 } from '../services/programacion.service'
 
+// NUEVO: generación masiva de programaciones (varios empleados)
+import GeneradorMasivo from '../components/GeneradorMasivo'
+
 function Programaciones() {
   const [empleados, setEmpleados] = useState([])
   const [turnos, setTurnos] = useState([])
@@ -68,7 +71,16 @@ function Programaciones() {
     diasTrabajo: 4,
     diasDescanso: 2,
     turnoTrabajoId: '',
+    inicioCiclo: 'DIA',
   })
+
+  // NUEVO: modo de generación y secuencia personalizada.
+  const [modoGenerador, setModoGenerador] = useState('ciclo')
+
+  const [secuencia, setSecuencia] = useState([
+    { tipo: 'TRABAJO', turnoId: '' },
+    { tipo: 'DESCANSO', turnoId: '' },
+  ])
 
   useEffect(() => {
     cargarDatos()
@@ -845,6 +857,42 @@ function Programaciones() {
     )
   }
 
+  // NUEVO: añadir un día a la secuencia personalizada.
+  function agregarElementoSecuencia() {
+    setSecuencia((actual) => [
+      ...actual,
+      { tipo: 'TRABAJO', turnoId: '' },
+    ])
+  }
+
+  // NUEVO: cambiar el tipo de día o el turno de una posición.
+  function cambiarElementoSecuencia(indice, campo, valor) {
+    setSecuencia((actual) =>
+      actual.map((elemento, i) => {
+        if (i !== indice) return elemento
+
+        if (campo === 'tipo') {
+          return {
+            tipo: valor,
+            turnoId: '',
+          }
+        }
+
+        return {
+          ...elemento,
+          [campo]: valor,
+        }
+      })
+    )
+  }
+
+  // NUEVO: eliminar una posición de la secuencia.
+  function eliminarElementoSecuencia(indice) {
+    setSecuencia((actual) =>
+      actual.filter((_, i) => i !== indice)
+    )
+  }
+
   async function manejarGenerarPeriodo(evento) {
     evento.preventDefault()
 
@@ -871,35 +919,108 @@ function Programaciones() {
         )
       }
 
-      if (!patron.turnoTrabajoId) {
-        throw new Error(
-          'Debe seleccionar el turno'
-        )
-      }
-
-      if (
-        new Date(periodo.fechaFin) <
-        new Date(periodo.fechaInicio)
-      ) {
+      if (periodo.fechaFin < periodo.fechaInicio) {
         throw new Error(
           'La fecha final no puede ser menor que la fecha inicial'
         )
       }
 
-      const datos = {
-        empleadoId: periodo.empleadoId,
-        fechaInicio: periodo.fechaInicio,
-        fechaFin: periodo.fechaFin,
-        tipo: patron.tipo,
-        diasTrabajo: Number(patron.diasTrabajo),
-        diasDescanso: Number(patron.diasDescanso),
-        turnoId: patron.turnoTrabajoId,
+      let datos
+
+      if (modoGenerador === 'secuencia') {
+        if (secuencia.length === 0) {
+          throw new Error(
+            'Agregue al menos un día a la secuencia'
+          )
+        }
+
+        const patronPersonalizado = secuencia.map(
+          (elemento, indice) => {
+            if (elemento.tipo === 'DESCANSO') {
+              return {
+                tipo: 'DESCANSO',
+              }
+            }
+
+            if (!elemento.turnoId) {
+              throw new Error(
+                `Seleccione un turno para el día ${indice + 1} de la secuencia`
+              )
+            }
+
+            return {
+              tipo: 'TRABAJO',
+              turnoId: elemento.turnoId,
+            }
+          }
+        )
+
+        if (
+          !patronPersonalizado.some(
+            (elemento) => elemento.tipo === 'TRABAJO'
+          )
+        ) {
+          throw new Error(
+            'La secuencia debe contener al menos un día de trabajo'
+          )
+        }
+
+        datos = {
+          empleadoId: periodo.empleadoId,
+          fechaInicio: periodo.fechaInicio,
+          fechaFin: periodo.fechaFin,
+          patron: patronPersonalizado,
+          posicionInicial: 1,
+          estado: 'PROGRAMADO',
+        }
+      } else {
+        if (!patron.turnoTrabajoId) {
+          throw new Error(
+            'Debe seleccionar el turno'
+          )
+        }
+
+        if (
+          !Number.isInteger(Number(patron.diasTrabajo)) ||
+          Number(patron.diasTrabajo) < 1
+        ) {
+          throw new Error(
+            'Los días de trabajo deben ser un número entero mayor que cero'
+          )
+        }
+
+        if (
+          !Number.isInteger(Number(patron.diasDescanso)) ||
+          Number(patron.diasDescanso) < 1
+        ) {
+          throw new Error(
+            'Los días de descanso deben ser un número entero mayor que cero'
+          )
+        }
+
+        datos = {
+          empleadoId: periodo.empleadoId,
+          fechaInicio: periodo.fechaInicio,
+          fechaFin: periodo.fechaFin,
+          tipo: patron.tipo,
+          diasTrabajo: Number(patron.diasTrabajo),
+          diasDescanso: Number(patron.diasDescanso),
+          turnoId: patron.turnoTrabajoId,
+          inicioCiclo: patron.inicioCiclo,
+          estado: 'PROGRAMADO',
+        }
       }
 
-      await generarProgramaciones(datos)
+      console.log(
+        'DATOS PARA GENERAR PROGRAMACIONES:',
+        datos
+      )
+
+      const resultado = await generarProgramaciones(datos)
 
       setMensaje(
-        'Las programaciones del período fueron generadas correctamente.'
+        resultado?.mensaje ||
+          'Se procesó la generación de programaciones. Revisa el resultado y la tabla.'
       )
 
       await cargarDatos()
@@ -1354,115 +1475,344 @@ function Programaciones() {
                   />
                 </div>
 
-                <div className="col-md-3">
+                {/* NUEVO: selector del modo de generación. */}
+                <div className="col-12">
                   <label className="form-label">
-                    Tipo de programación
+                    Método de generación
                   </label>
 
                   <select
                     className="form-select"
-                    value={patron.tipo}
+                    value={modoGenerador}
                     onChange={(evento) =>
-                      setPatron((actual) => ({
-                        ...actual,
-                        tipo:
-                          evento.target.value,
-                      }))
+                      setModoGenerador(evento.target.value)
                     }
                   >
-                    <option value="ROTATIVO">
-                      ROTATIVO
+                    <option value="ciclo">
+                      Ciclo repetitivo con un mismo turno
                     </option>
 
-                    <option value="FIJO">
-                      FIJO
+                    <option value="secuencia">
+                      Secuencia personalizada de turnos
                     </option>
                   </select>
+
+                  <small className="text-muted">
+                    Puedes usar un ciclo sencillo o combinar diferentes turnos y descansos en una secuencia.
+                  </small>
                 </div>
 
-                <div className="col-md-3">
-                  <label className="form-label">
-                    Días de trabajo
-                  </label>
+                {modoGenerador === 'ciclo' ? (
+                  <>
+                    <div className="col-md-3">
+                      <label className="form-label">
+                        Tipo de programación
+                      </label>
 
-                  <input
-                    type="number"
-                    min="1"
-                    className="form-control"
-                    value={patron.diasTrabajo}
-                    onChange={(evento) =>
-                      setPatron((actual) => ({
-                        ...actual,
-                        diasTrabajo:
-                          evento.target.value,
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="col-md-3">
-                  <label className="form-label">
-                    Días de descanso
-                  </label>
-
-                  <input
-                    type="number"
-                    min="0"
-                    className="form-control"
-                    value={patron.diasDescanso}
-                    onChange={(evento) =>
-                      setPatron((actual) => ({
-                        ...actual,
-                        diasDescanso:
-                          evento.target.value,
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="col-md-3">
-                  <label className="form-label">
-                    Turno
-                  </label>
-
-                  <select
-                    className="form-select"
-                    value={patron.turnoTrabajoId}
-                    onChange={(evento) =>
-                      setPatron((actual) => ({
-                        ...actual,
-                        turnoTrabajoId:
-                          evento.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">
-                      Seleccionar turno
-                    </option>
-
-                    {turnos
-                      .filter(
-                        (turno) =>
-                          turno.activo !== false
-                      )
-                      .map((turno) => (
-                        <option
-                          key={turno.id}
-                          value={turno.id}
-                        >
-                          {turno.nombre}
+                      <select
+                        className="form-select"
+                        value={patron.tipo}
+                        onChange={(evento) =>
+                          setPatron((actual) => ({
+                            ...actual,
+                            tipo: evento.target.value,
+                          }))
+                        }
+                      >
+                        <option value="ROTATIVO">
+                          ROTATIVO
                         </option>
-                      ))}
-                  </select>
-                </div>
+
+                        <option value="FIJO">
+                          FIJO
+                        </option>
+                      </select>
+                    </div>
+
+                    <div className="col-md-3">
+                      <label className="form-label">
+                        Inicio del ciclo
+                      </label>
+
+                      <select
+                        className="form-select"
+                        value={patron.inicioCiclo}
+                        onChange={(evento) =>
+                          setPatron((actual) => ({
+                            ...actual,
+                            inicioCiclo: evento.target.value,
+                          }))
+                        }
+                      >
+                        <option value="DIA">
+                          DÍA
+                        </option>
+
+                        <option value="NOCHE">
+                          NOCHE
+                        </option>
+
+                        <option value="DESCANSO">
+                          DESCANSO
+                        </option>
+                      </select>
+                    </div>
+
+                    <div className="col-md-3">
+                      <label className="form-label">
+                        Días de trabajo
+                      </label>
+
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        className="form-control"
+                        value={patron.diasTrabajo}
+                        onChange={(evento) =>
+                          setPatron((actual) => ({
+                            ...actual,
+                            diasTrabajo: evento.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+
+                    <div className="col-md-3">
+                      <label className="form-label">
+                        Días de descanso
+                      </label>
+
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        className="form-control"
+                        value={patron.diasDescanso}
+                        onChange={(evento) =>
+                          setPatron((actual) => ({
+                            ...actual,
+                            diasDescanso: evento.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label">
+                        Turno de trabajo
+                      </label>
+
+                      <select
+                        className="form-select"
+                        value={patron.turnoTrabajoId}
+                        onChange={(evento) =>
+                          setPatron((actual) => ({
+                            ...actual,
+                            turnoTrabajoId: evento.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">
+                          Seleccionar turno
+                        </option>
+
+                        {turnos
+                          .filter(
+                            (turno) =>
+                              turno.activo !== false
+                          )
+                          .map((turno) => (
+                            <option
+                              key={turno.id}
+                              value={turno.id}
+                            >
+                              {turno.nombre}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <div className="col-12">
+                      <div className="alert alert-light border mb-0">
+                        <strong>Ejemplo:</strong> 4 días de trabajo
+                        con el turno seleccionado y 2 días de descanso.
+                        El patrón se repetirá durante el período.
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="col-12">
+                      <div className="d-flex justify-content-between align-items-center gap-2 mb-2">
+                        <div>
+                          <h6 className="mb-1">
+                            Secuencia de turnos
+                          </h6>
+
+                          <small className="text-muted">
+                            Define el orden de los días. La secuencia
+                            completa se repetirá desde la fecha inicial.
+                          </small>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="btn btn-outline-dark btn-sm"
+                          onClick={agregarElementoSecuencia}
+                        >
+                          Agregar día
+                        </button>
+                      </div>
+
+                      <div className="table-responsive">
+                        <table className="table table-bordered align-middle">
+                          <thead className="table-light">
+                            <tr>
+                              <th style={{ width: '90px' }}>
+                                Posición
+                              </th>
+
+                              <th style={{ width: '220px' }}>
+                                Tipo de día
+                              </th>
+
+                              <th>
+                                Turno y duración
+                              </th>
+
+                              <th style={{ width: '100px' }}>
+                                Acción
+                              </th>
+                            </tr>
+                          </thead>
+
+                          <tbody>
+                            {secuencia.map((elemento, indice) => {
+                              const turnoSeleccionado = turnos.find(
+                                (turno) =>
+                                  turno.id === elemento.turnoId
+                              )
+
+                              return (
+                                <tr key={indice}>
+                                  <td>
+                                    <strong>
+                                      {indice + 1}
+                                    </strong>
+                                  </td>
+
+                                  <td>
+                                    <select
+                                      className="form-select"
+                                      value={elemento.tipo}
+                                      onChange={(evento) =>
+                                        cambiarElementoSecuencia(
+                                          indice,
+                                          'tipo',
+                                          evento.target.value
+                                        )
+                                      }
+                                    >
+                                      <option value="TRABAJO">
+                                        TRABAJO
+                                      </option>
+
+                                      <option value="DESCANSO">
+                                        DESCANSO
+                                      </option>
+                                    </select>
+                                  </td>
+
+                                  <td>
+                                    {elemento.tipo === 'TRABAJO' ? (
+                                      <>
+                                        <select
+                                          className="form-select"
+                                          value={elemento.turnoId}
+                                          onChange={(evento) =>
+                                            cambiarElementoSecuencia(
+                                              indice,
+                                              'turnoId',
+                                              evento.target.value
+                                            )
+                                          }
+                                        >
+                                          <option value="">
+                                            Seleccionar turno
+                                          </option>
+
+                                          {turnos
+                                            .filter(
+                                              (turno) =>
+                                                turno.activo !== false
+                                            )
+                                            .map((turno) => (
+                                              <option
+                                                key={turno.id}
+                                                value={turno.id}
+                                              >
+                                                {turno.nombre}
+                                                {turno.horasProgramadas != null
+                                                  ? ` — ${turno.horasProgramadas} horas`
+                                                  : ''}
+                                              </option>
+                                            ))}
+                                        </select>
+
+                                        {turnoSeleccionado && (
+                                          <small className="text-muted d-block mt-1">
+                                            Horario:{' '}
+                                            {turnoSeleccionado.horaEntrada ||
+                                              'Sin hora de entrada'}
+                                            {' - '}
+                                            {turnoSeleccionado.horaSalida ||
+                                              'Sin hora de salida'}
+                                          </small>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="text-muted">
+                                        Descanso — 0 horas programadas
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  <td>
+                                    <button
+                                      type="button"
+                                      className="btn btn-outline-danger btn-sm"
+                                      disabled={secuencia.length === 1}
+                                      onClick={() =>
+                                        eliminarElementoSecuencia(indice)
+                                      }
+                                    >
+                                      Eliminar
+                                    </button>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="alert alert-light border mb-0">
+                        <strong>Importante:</strong> cada posición
+                        representa un día de la rotación. Si necesitas
+                        dos noches seguidas, agrega dos posiciones de
+                        trabajo y selecciona el turno correspondiente
+                        en ambas.
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="col-12">
                   <button
                     type="submit"
                     className="btn btn-dark"
-                    disabled={
-                      generandoPeriodo
-                    }
+                    disabled={generandoPeriodo}
                   >
                     {generandoPeriodo
                       ? 'Generando...'
@@ -1471,6 +1821,37 @@ function Programaciones() {
                 </div>
               </div>
             </form>
+          </div>
+        )}
+      </div>
+
+      {/* NUEVO: generación masiva (varios empleados, con vista previa) */}
+      <div className="card shadow-sm mb-4">
+        <div className="card-header">
+          <button
+            type="button"
+            className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
+            onClick={() =>
+              setSeccionAbierta(
+                seccionAbierta === 'masivo'
+                  ? ''
+                  : 'masivo'
+              )
+            }
+          >
+            <strong>
+              Generación masiva (varios empleados)
+            </strong>
+          </button>
+        </div>
+
+        {seccionAbierta === 'masivo' && (
+          <div className="card-body">
+            <GeneradorMasivo
+              empleados={empleados}
+              turnos={turnos}
+              onGuardado={cargarDatos}
+            />
           </div>
         )}
       </div>

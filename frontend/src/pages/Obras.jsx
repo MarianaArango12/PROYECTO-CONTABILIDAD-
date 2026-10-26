@@ -240,14 +240,7 @@ function Obras() {
         )
       }
 
-      if (
-        formulario.horasServicio === '' ||
-        Number(formulario.horasServicio) <= 0
-      ) {
-        throw new Error(
-          'Las horas de servicio deben ser mayores que cero.'
-        )
-      }
+      
 
       if (!formulario.fechaInicio) {
         throw new Error(
@@ -780,21 +773,7 @@ function Obras() {
                 {/* HORAS */}
 
                 <div className="form-group">
-
-                  <label>
-                    Horas de servicio
-                  </label>
-
-                  <input
-                    type="number"
-                    name="horasServicio"
-                    value={formulario.horasServicio}
-                    onChange={manejarCambio}
-                    placeholder="Ej. 12"
-                    min="0.01"
-                    step="0.01"
-                    required
-                  />
+                
 
                 </div>
 

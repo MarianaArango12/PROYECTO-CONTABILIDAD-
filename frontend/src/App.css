@@ -1640,3 +1640,217 @@ button {
   align-items: center;
 }
 
+/* =========================
+   LOGIN CONTAPRO
+========================= */
+
+.login-page {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 18px;
+  background:
+    radial-gradient(ellipse at top left, rgba(37, 99, 235, 0.10), transparent 42%),
+    #f3f6fb;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 430px;
+  padding: 38px 36px 26px;
+  background: #ffffff;
+  border: 1px solid #e5eaf2;
+  border-radius: 18px;
+  box-shadow: 0 18px 55px rgba(15, 23, 42, 0.10);
+  text-align: center;
+}
+
+.login-brand-icon {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 15px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 29px;
+  font-weight: 700;
+  box-shadow: 0 7px 16px rgba(37, 99, 235, 0.22);
+}
+
+.login-card > h1 {
+  margin: 0;
+  color: #172033;
+  font-size: 27px;
+  font-weight: 750;
+  letter-spacing: -0.7px;
+}
+
+.login-subtitle {
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.login-divider {
+  height: 1px;
+  margin: 26px 0 24px;
+  background: #e5e7eb;
+}
+
+.login-card > h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.login-description {
+  margin: 8px 0 24px;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.login-card form {
+  width: 100%;
+  padding: 0;
+  text-align: left;
+}
+
+.login-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 19px;
+}
+
+.login-form-group > label {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.login-form-group > input,
+.login-password-wrapper > input {
+  width: 100%;
+  min-width: 0;
+  height: 46px;
+  padding: 0 13px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  background: #ffffff;
+  color: #172033;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.login-form-group > input:focus,
+.login-password-wrapper > input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.login-form-group input::placeholder {
+  color: #9ca3af;
+}
+
+.login-password-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  position: relative;
+}
+
+.login-password-wrapper > input {
+  padding-right: 48px;
+}
+
+.login-toggle-password {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: transparent;
+  color: #6b7280;
+}
+
+.login-toggle-password:hover {
+  background: #f3f6fb;
+  color: #2563eb;
+}
+
+.login-toggle-password:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.login-toggle-password:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.login-toggle-password svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.login-error {
+  margin: 0 0 17px;
+  padding: 11px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.login-button {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 3px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.login-footer {
+  margin: 25px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid #f0f1f4;
+  color: #9ca3af;
+  font-size: 11px;
+}
+
+@media (max-width: 480px) {
+  .login-page {
+    padding: 18px 14px;
+  }
+
+  .login-card {
+    padding: 30px 22px 22px;
+    border-radius: 14px;
+  }
+
+  .login-card > h1 {
+    font-size: 25px;
+  }
+}
+

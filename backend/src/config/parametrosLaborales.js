@@ -36,17 +36,13 @@ export const PARAMETROS_LABORALES = {
   // ======================================================
   // RECARGOS
   // ======================================================
-
+ 
+ 
   recargos: {
-
     nocturno: 0.35,
-
-    dominical: 1.00,
-
-    festivo: 1.00,
-
-    nocturnoFestivo: 1.00
-
+    dominical: 0.90,
+    festivo: 0.90,
+    nocturnoFestivo: 0.35
   },
 
   // ======================================================

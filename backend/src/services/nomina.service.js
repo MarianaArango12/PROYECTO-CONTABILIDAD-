@@ -10,7 +10,14 @@ function rangoDelPeriodo(desde, hasta) {
   return { gte: diaUtc(desde, false), lte: diaUtc(hasta, true) };
 }
 
-const FESTIVOS = ["01-01", "05-01", "07-20", "08-07", "12-08", "12-25"];
+// CAMBIO 1: festivos con fecha completa (los que se pasan al lunes no se pueden escribir como mes-día).
+// Verificar contra el calendario oficial y agregar los de 2027 cuando corresponda.
+const FESTIVOS = [
+  "2026-01-01", "2026-01-12", "2026-03-23", "2026-04-02", "2026-04-03",
+  "2026-05-01", "2026-05-18", "2026-06-08", "2026-06-15", "2026-06-29",
+  "2026-07-20", "2026-08-07", "2026-08-17", "2026-10-12", "2026-11-02",
+  "2026-11-16", "2026-12-08", "2026-12-25",
+];
 
 function fechaUtc(valor) {
   const iso = String(valor).slice(0, 10);
@@ -26,7 +33,7 @@ function textoFecha(valor) {
 }
 
 export function esFestivo(valor) {
-  return FESTIVOS.includes(textoFecha(valor).slice(5, 10));
+  return FESTIVOS.includes(textoFecha(valor));
 }
 
 export function esDomingo(valor) {
@@ -171,13 +178,15 @@ export function analizarProgramaciones(programaciones, segundo = [], tercero) {
       if (!esExtra) {
         ordinarias += bloque.horas;
         acumuladas += bloque.horas;
-      } else if (bloque.festivo && bloque.nocturna) extraNocturnasFestivas += bloque.horas;
-      else if (bloque.festivo) extraDiurnasFestivas += bloque.horas;
+        // CAMBIO 2: los recargos solo se causan en las horas ORDINARIAS (las extras se pagan completas).
+        if (descansoObligatorio && bloque.nocturna) recargoNocturnoFestivo += bloque.horas;
+        else if (descansoObligatorio) recargoFestivo += bloque.horas;
+        else if (bloque.nocturna) recargoNocturno += bloque.horas;
+      // CAMBIO 3: las extras en domingo cuentan como festivas (antes solo se miraba bloque.festivo).
+      } else if (descansoObligatorio && bloque.nocturna) extraNocturnasFestivas += bloque.horas;
+      else if (descansoObligatorio) extraDiurnasFestivas += bloque.horas;
       else if (bloque.nocturna) extraNocturnas += bloque.horas;
       else extraDiurnas += bloque.horas;
-      if (descansoObligatorio && bloque.nocturna) recargoNocturnoFestivo += bloque.horas;
-      else if (descansoObligatorio) recargoFestivo += bloque.horas;
-      else if (bloque.nocturna) recargoNocturno += bloque.horas;
     }
     totalHorasTrabajadas += trabajadas;
     detalle.push({ fecha, tipoProgramacion: "TRABAJO", horasTrabajadas: trabajadas, incapacidad: false });
