@@ -44,7 +44,7 @@ router.get(
 router.put(
   '/:id/aprobar',
   verificarToken,
-  verificarRol('Nómina'),
+  verificarRol('Administrador', 'Nómina'),
   aprobarNovedad
 );
 
@@ -53,7 +53,7 @@ router.put(
 router.put(
   '/:id/rechazar',
   verificarToken,
-  verificarRol('Nómina'),
+  verificarRol('Administrador','Nómina'),
   rechazarNovedad
 );
 

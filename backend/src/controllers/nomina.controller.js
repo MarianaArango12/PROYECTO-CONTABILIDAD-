@@ -51,6 +51,152 @@ function calcularValoresNomina(analisisProgramaciones, salarioBase) {
   };
 }
 
+function calcularDetalleConceptos(analisis, salarioBase, totales) {
+  const valorHoraExacto =
+    Number(salarioBase) / PARAMETROS_LABORALES.horasMensuales;
+
+  const parametrosExtras = PARAMETROS_LABORALES.horasExtra;
+  const parametrosRecargos = PARAMETROS_LABORALES.recargos;
+
+  function crearLinea(horas, porcentaje, incluyeBase) {
+    const cantidad = Number(horas || 0);
+    const factor = Number(porcentaje || 0);
+    const tarifaExacta = valorHoraExacto * (
+      incluyeBase ? 1 + factor : factor
+    );
+
+    return {
+      horas: cantidad,
+      porcentaje: redondearMoneda(factor * 100),
+      multiplicadorTotal: incluyeBase
+        ? redondearMoneda((1 + factor) * 100)
+        : null,
+      tarifaHora: redondearMoneda(tarifaExacta),
+      valorTotal: redondearMoneda(cantidad * tarifaExacta),
+    };
+  }
+
+  function ajustarTotal(lineas, totalEsperado) {
+    if (lineas.length === 0) return;
+
+    const suma = lineas.reduce(
+      (acumulado, linea) => acumulado + linea.valorTotal,
+      0
+    );
+
+    // Compensa el redondeo para que el detalle coincida
+    // exactamente con el total calculado por la nómina.
+    lineas[lineas.length - 1].valorTotal += totalEsperado - suma;
+  }
+
+  const extras = [
+    {
+      clave: "diurna",
+      linea: crearLinea(
+        analisis.horasExtraDiurnas,
+        parametrosExtras.diurna,
+        true
+      ),
+    },
+    {
+      clave: "nocturna",
+      linea: crearLinea(
+        analisis.horasExtraNocturnas,
+        parametrosExtras.nocturna,
+        true
+      ),
+    },
+    {
+      clave: "diurnaFestiva",
+      linea: crearLinea(
+        analisis.horasExtraDiurnasFestivas,
+        parametrosExtras.festivaDiurna,
+        true
+      ),
+    },
+    {
+      clave: "nocturnaFestiva",
+      linea: crearLinea(
+        analisis.horasExtraNocturnasFestivas,
+        parametrosExtras.festivaNocturna,
+        true
+      ),
+    },
+  ];
+
+  ajustarTotal(
+    extras.map((item) => item.linea),
+    totales.horasExtra
+  );
+
+  const recargos = [
+    {
+      clave: "nocturno",
+      linea: crearLinea(
+        analisis.recargoNocturno,
+        parametrosRecargos.nocturno,
+        false
+      ),
+    },
+    {
+      clave: "festivo",
+      linea: crearLinea(
+        analisis.recargoFestivo,
+        parametrosRecargos.festivo,
+        false
+      ),
+    },
+    {
+      clave: "nocturnoFestivo",
+      linea: crearLinea(
+        analisis.recargoNocturnoFestivo,
+        parametrosRecargos.nocturnoFestivo,
+        false
+      ),
+    },
+  ];
+
+  ajustarTotal(
+    recargos.map((item) => item.linea),
+    totales.recargos
+  );
+
+  const detalleHorasExtra = {
+    cantidadHoras: Number(analisis.horasExtraTotales || 0),
+    horasDiurnas: Number(analisis.horasExtraDiurnas || 0),
+    horasNocturnas: Number(analisis.horasExtraNocturnas || 0),
+    horasDiurnasFestivas: Number(
+      analisis.horasExtraDiurnasFestivas || 0
+    ),
+    horasNocturnasFestivas: Number(
+      analisis.horasExtraNocturnasFestivas || 0
+    ),
+    valorTotal: totales.horasExtra,
+  };
+
+  for (const item of extras) {
+    detalleHorasExtra[item.clave] = item.linea;
+  }
+
+  const detalleRecargos = {
+    totalHorasNocturnas: Number(analisis.recargoNocturno || 0),
+    totalHorasFestivas: Number(analisis.recargoFestivo || 0),
+    totalHorasNocturnasFestivas: Number(
+      analisis.recargoNocturnoFestivo || 0
+    ),
+    valorNocturno: recargos[0].linea.valorTotal,
+    valorFestivo: recargos[1].linea.valorTotal,
+    valorNocturnoFestivo: recargos[2].linea.valorTotal,
+    valorTotal: totales.recargos,
+  };
+
+  for (const item of recargos) {
+    detalleRecargos[item.clave] = item.linea;
+  }
+
+  return { detalleHorasExtra, detalleRecargos };
+}
+
 function calcularSalarioCausado(salarioBase, incapacidad, diasPeriodo) {
   const salario = Number(salarioBase);
   const valorDia = salario / 30;
@@ -64,9 +210,14 @@ function calcularSalarioCausado(salarioBase, incapacidad, diasPeriodo) {
 
 function totalesDeNomina({ salarioCausado, horasExtra, recargos, bono, descuento, auxilio }) {
   const ibc = redondearMoneda(Math.max(0, salarioCausado + horasExtra + recargos));
-  const salud = redondearMoneda(ibc * (PARAMETROS_LABORALES.salud ?? 0.04));
-  const pension = redondearMoneda(ibc * (PARAMETROS_LABORALES.pension ?? 0.04));
-  const totalDevengado = redondearMoneda(salarioCausado + horasExtra + recargos + bono + auxilio);
+  const salud = redondearMoneda(
+  ibc * PARAMETROS_LABORALES.aportesTrabajador.salud
+);
+
+  const pension = redondearMoneda(
+  ibc * PARAMETROS_LABORALES.aportesTrabajador.pension
+);
+  const totalDevengado = redondearMoneda(salarioCausado + horasExtra + recargos + bono +                          auxilio);
   const totalDeducciones = redondearMoneda(salud + pension + descuento);
   const netoPagar = redondearMoneda(totalDevengado - totalDeducciones);
 
@@ -126,8 +277,19 @@ export async function crearNomina(req, res) {
     const incapacidad = calcularIncapacidades(novedades, salario);
     const dias = diasDelPeriodo(inicio, fin);
     const { valorDia, descuentoSalario, salarioCausado } = calcularSalarioCausado(salario, incapacidad, dias);
-    const { valorHora, horasExtra, recargos } = calcularValoresNomina(analisisProgramaciones, salario);
+
+
+    const { valorHora, horasExtra, recargos } =
+    calcularValoresNomina(analisisProgramaciones, salario);
+
+    const { detalleHorasExtra, detalleRecargos } =
+      calcularDetalleConceptos(analisisProgramaciones, salario, {
+        horasExtra,
+        recargos,
+      });
+
     const auxilio = calcularAuxilio(salario, dias);
+
     const bono = redondearMoneda(Number(bonificaciones ?? 0));
     const descuento = redondearMoneda(Number(descuentos ?? 0));
 
@@ -146,17 +308,25 @@ export async function crearNomina(req, res) {
       auxilio,
     });
 
+
     const datos = {
       salarioBase: salario,
       horasExtra,
       recargos,
       bonificaciones: bono,
       descuentos: descuento,
+
+      auxilioTransporte: auxilio,
+      ingresoBaseCotizacion: ibc,
+      salud,
+      pension,
+
       totalDevengado,
       totalDeducciones,
       netoPagar,
       estado: "CALCULADA",
     };
+
 
     const includeEmpleado = {
       empleado: {
@@ -185,7 +355,7 @@ export async function crearNomina(req, res) {
     return res.status(nominaExistente ? 200 : 201).json({
       mensaje: nominaExistente ? "Nómina recalculada correctamente" : "Nómina creada correctamente",
       nomina,
-      analisisProgramaciones,
+      analisisProgramaciones,detalleHorasExtra,detalleRecargos,
       valorHora,
       novedades,
       incapacidad,
@@ -293,6 +463,11 @@ export async function actualizarNomina(req, res) {
     const dias = diasDelPeriodo(diaUtc(nomina.periodoInicio, false), diaUtc(nomina.periodoFin, false));
     const { valorDia, descuentoSalario, salarioCausado } = calcularSalarioCausado(salarioBase, incapacidad, dias);
     const { valorHora, horasExtra, recargos } = calcularValoresNomina(analisisProgramaciones, salarioBase);
+    const { detalleHorasExtra, detalleRecargos } =
+      calcularDetalleConceptos(analisisProgramaciones, salarioBase, {
+        horasExtra,
+        recargos,
+      });
     const auxilio = calcularAuxilio(salarioBase, dias);
     const bonificaciones = redondearMoneda(Number(nomina.bonificaciones || 0));
     const descuentos = redondearMoneda(Number(nomina.descuentos || 0));
@@ -311,10 +486,19 @@ export async function actualizarNomina(req, res) {
         salarioBase,
         horasExtra,
         recargos,
+        bonificaciones,
+        descuentos,
+
+        auxilioTransporte: auxilio,
+        ingresoBaseCotizacion: ibc,
+        salud,
+        pension,
+
         totalDevengado,
         totalDeducciones,
         netoPagar,
       },
+
       include: {
         empleado: {
           select: {
@@ -334,6 +518,8 @@ export async function actualizarNomina(req, res) {
       nomina: nominaActualizada,
       analisisProgramaciones,
       valorHora,
+      detalleHorasExtra,
+      detalleRecargos,
       novedades,
       incapacidad,
       auxilio,

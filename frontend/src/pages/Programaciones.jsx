@@ -8,6 +8,7 @@ import {
   generarProgramaciones,
   actualizarProgramacion,
   cambiarEstadoProgramacion,
+  eliminarProgramacion,
 } from '../services/programacion.service'
 
 // NUEVO: generación masiva de programaciones (varios empleados)
@@ -424,6 +425,48 @@ function Programaciones() {
       setGuardando(false)
     }
   }
+
+
+  async function eliminarProgramacionSeleccionada(programacion) {
+    const fecha = programacion.fecha
+      ? new Date(programacion.fecha).toLocaleDateString('es-CO', {
+          timeZone: 'UTC',
+        })
+      : 'día seleccionado'
+
+    const nombreEmpleado = [
+      programacion.empleado?.nombres,
+      programacion.empleado?.apellidos,
+    ]
+      .filter(Boolean)
+      .join(' ') || 'este empleado'
+
+    const confirmado = window.confirm(
+      `¿Deseas eliminar permanentemente la programación de ${nombreEmpleado} del ${fecha}?\n\nEsta acción no se puede deshacer.`
+    )
+
+    if (!confirmado) return
+
+    try {
+      setError('')
+      setMensaje('')
+      setGuardando(true)
+
+      await eliminarProgramacion(programacion.id)
+
+      setProgramaciones((actuales) =>
+        actuales.filter((item) => item.id !== programacion.id)
+      )
+
+      setAccionAbierta(null)
+      setMensaje('Programación eliminada correctamente.')
+    } catch (err) {
+      setError(err.message || 'No se pudo eliminar la programación.')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
 
   async function manejarCrearTurno(evento) {
     evento.preventDefault()
@@ -1377,6 +1420,7 @@ function Programaciones() {
         )}
       </div>
 
+
       <div className="card shadow-sm mb-4">
         <div className="card-header">
           <button
@@ -2190,6 +2234,19 @@ function Programaciones() {
                                   >
                                     Cancelar
                                   </button>
+
+
+                                    <button
+                                      type="button"
+                                      className="dropdown-item text-danger"
+                                      disabled={guardando}
+                                      onClick={() =>
+                                        eliminarProgramacionSeleccionada(programacion)
+                                      }
+                                    >
+                                      Eliminar permanentemente
+                                    </button>
+
                                 </div>
                               )}
                             </div>

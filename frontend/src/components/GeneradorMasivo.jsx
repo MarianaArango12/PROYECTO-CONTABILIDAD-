@@ -50,7 +50,7 @@ function GeneradorMasivoInterno({ empleados = [], turnos = [], onGuardado }) {
   const [diasDescanso, setDiasDescanso] = useState(2)
   const [ciclo, setCiclo] = useState([]) // valores: 'DESC' o id de turno
 
-  const [escalonar, setEscalonar] = useState(true)
+  const [escalonar, setEscalonar] = useState(false)
   const [reemplazar, setReemplazar] = useState(false)
 
   const [seleccion, setSeleccion] = useState(new Set())

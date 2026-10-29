@@ -152,3 +152,24 @@ export async function cambiarEstadoProgramacion(
 
   return datos;
 }
+
+
+export async function eliminarProgramacion(id) {
+  const respuesta = await fetch(
+    `${API_URL}/programaciones/${id}`,
+    {
+      method: 'DELETE',
+      headers: obtenerHeaders(),
+    }
+  );
+
+  const datos = await respuesta.json();
+
+  if (!respuesta.ok) {
+    throw new Error(
+      datos.error || 'No se pudo eliminar la programación'
+    );
+  }
+
+  return datos;
+}

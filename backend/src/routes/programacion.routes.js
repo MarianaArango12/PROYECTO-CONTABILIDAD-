@@ -7,10 +7,11 @@ import {
   actualizarProgramacion,
   cambiarEstadoProgramacion,
   obtenerProgramacionesPorEmpleado,
-  generarProgramaciones
+  generarProgramaciones,
+  eliminarProgramacion
 } from '../controllers/programacion.controller.js';
 
-// NUEVO: generación masiva de programaciones
+// Generación masiva de programaciones.
 import { generarMasivoHandler } from '../services/programacionMasiva.service.js';
 
 import { verificarToken } from '../middlewares/auth.middleware.js';
@@ -18,10 +19,8 @@ import { verificarRol } from '../middlewares/role.middleware.js';
 
 const router = Router();
 
-
-//CREAR PROGRAMACIÓN
-//Administrador y Programador
-
+// CREAR PROGRAMACIÓN
+// Administrador y Programador.
 router.post(
   '/',
   verificarToken,
@@ -29,10 +28,8 @@ router.post(
   crearProgramacion
 );
 
-
-//GENERAR PROGRAMACIONES A PARTIR DE UN PATRÓN (NUEVO)
-//Administrador y Programador
-
+// GENERAR PROGRAMACIONES A PARTIR DE UN PATRÓN.
+// Administrador y Programador.
 router.post(
   '/generar',
   verificarToken,
@@ -40,10 +37,8 @@ router.post(
   generarProgramaciones
 );
 
-
-//GENERAR PROGRAMACIONES MASIVAS (VARIOS EMPLEADOS, CON VISTA PREVIA)
-//Administrador y Programador
-
+// GENERAR PROGRAMACIONES MASIVAS.
+// Administrador y Programador.
 router.post(
   '/generar-masivo',
   verificarToken,
@@ -51,6 +46,8 @@ router.post(
   generarMasivoHandler
 );
 
+// LISTAR PROGRAMACIONES POR EMPLEADO.
+// Administrador, Programador y Nómina.
 router.get(
   '/empleado/:empleadoId',
   verificarToken,
@@ -62,12 +59,8 @@ router.get(
   obtenerProgramacionesPorEmpleado
 );
 
-
-
-//LISTAR PROGRAMACIONES
-//Administrador, Programador y Nómina
-
-
+// LISTAR PROGRAMACIONES.
+// Administrador, Programador y Nómina.
 router.get(
   '/',
   verificarToken,
@@ -79,9 +72,8 @@ router.get(
   listarProgramaciones
 );
 
-//OBTENER UNA PROGRAMACIÓN
-//Administrador, Programador y Nómina
-
+// OBTENER UNA PROGRAMACIÓN.
+// Administrador, Programador y Nómina.
 router.get(
   '/:id',
   verificarToken,
@@ -93,12 +85,8 @@ router.get(
   obtenerProgramacion
 );
 
-
-
-//ACTUALIZAR PROGRAMACIÓN
-//Administrador y Programador
-
-
+// ACTUALIZAR PROGRAMACIÓN.
+// Administrador y Programador.
 router.put(
   '/:id',
   verificarToken,
@@ -106,12 +94,8 @@ router.put(
   actualizarProgramacion
 );
 
-
-
-//CAMBIAR ESTADO
-//Administrador y Programador
-
-
+// CAMBIAR ESTADO DE LA PROGRAMACIÓN.
+// Administrador y Programador.
 router.patch(
   '/:id/estado',
   verificarToken,
@@ -119,5 +103,13 @@ router.patch(
   cambiarEstadoProgramacion
 );
 
+// ELIMINAR PROGRAMACIÓN.
+// Administrador y Programador.
+router.delete(
+  '/:id',
+  verificarToken,
+  verificarRol('Administrador', 'Programador'),
+  eliminarProgramacion
+);
 
 export default router;

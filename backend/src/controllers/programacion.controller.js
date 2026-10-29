@@ -569,6 +569,69 @@ export async function cambiarEstadoProgramacion(req, res) {
   }
 }
 
+export async function eliminarProgramacion(req, res) {
+  try {
+    const { id } = req.params;
+
+    // Buscar la programación.
+    const programacion = await prisma.programacion.findUnique({
+      where: { id }
+    });
+
+    if (!programacion) {
+      return res.status(404).json({
+        error: 'Programación no encontrada'
+      });
+    }
+
+    // Comprobar si existe una nómina activa para ese empleado
+    // cuyo período incluya la fecha de la programación.
+    const inicioDia = new Date(programacion.fecha);
+    inicioDia.setUTCHours(0, 0, 0, 0);
+
+    const finDia = new Date(programacion.fecha);
+    finDia.setUTCHours(23, 59, 59, 999);
+
+    const nominaRelacionada = await prisma.nomina.findFirst({
+      where: {
+        empleadoId: programacion.empleadoId,
+        estado: { not: 'ANULADA' },
+        estado: { in: ['APROBADA', 'PAGADA'] },
+        periodoFin: { gte: inicioDia }
+      }
+    });
+
+    if (nominaRelacionada) {
+      return res.status(409).json({
+        error:
+          'No se puede eliminar esta programación porque el empleado tiene una nómina no anulada que incluye esa fecha. Anule o revise la nómina antes de continuar.'
+      });
+    }
+
+    // Eliminar definitivamente la programación.
+    await prisma.programacion.delete({
+      where: { id }
+    });
+
+    return res.json({
+      mensaje: 'Programación eliminada correctamente',
+      id
+    });
+  } catch (error) {
+    console.error(error);
+
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        error: 'Programación no encontrada'
+      });
+    }
+
+    return res.status(500).json({
+      error: 'Error al eliminar la programación'
+    });
+  }
+}
+
 
 export async function obtenerProgramacionesPorEmpleado(req, res) {
   try {
@@ -855,8 +918,6 @@ export async function generarProgramaciones(req, res) {
 
     const filas = [];
     
-
-
 
 
     for (let i = 0; i < dias; i++) {

@@ -6,6 +6,10 @@ export const PARAMETROS_LABORALES = {
 
   horasSemanales: 42,
 
+  horasOrdinariasQuincena: 91,
+
+  horasDescanso: 7,
+
   valorHoraOrdinaria: 8338,
 
   // ======================================================

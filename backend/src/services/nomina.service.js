@@ -122,8 +122,10 @@ export function calcularIncapacidades(novedades, salarioMensual) {
   if (!Number.isFinite(salarioMensual) || salarioMensual <= 0 || fechas.length === 0) {
     return { cantidadDias: 0, valorDia, valorTotal: 0, detalle: [] };
   }
-  const dias1a90 = PARAMETROS_LABORALES.incapacidad?.dias1a90 ?? 2 / 3;
-  const dias91a180 = PARAMETROS_LABORALES.incapacidad?.dias91a180 ?? 0.5;
+ const parametrosIncapacidad =
+  PARAMETROS_LABORALES.incapacidad?.enfermedadGeneral ?? {};
+  const dias1a90 = parametrosIncapacidad.dias1a90 ?? 2 / 3;
+  const dias91a180 = parametrosIncapacidad.dias91a180 ?? 0.5;
   const detalle = [];
   let dia = 0;
   let anterior = null;
@@ -142,10 +144,17 @@ export function calcularIncapacidades(novedades, salarioMensual) {
   };
 }
 
+
 export function analizarProgramaciones(programaciones, segundo = [], tercero) {
-  const novedades = Array.isArray(tercero) ? tercero : Array.isArray(segundo) ? segundo : [];
+  const novedades = Array.isArray(tercero)
+    ? tercero
+    : Array.isArray(segundo)
+      ? segundo
+      : [];
+
   const tope = PARAMETROS_LABORALES.horasOrdinariasQuincena ?? 91;
   const horasDescanso = PARAMETROS_LABORALES.horasDescanso ?? 7;
+
   let acumuladas = 0;
   let totalHorasTrabajadas = 0;
   let totalHorasDescansoRemunerado = 0;
@@ -157,39 +166,87 @@ export function analizarProgramaciones(programaciones, segundo = [], tercero) {
   let recargoNocturno = 0;
   let recargoFestivo = 0;
   let recargoNocturnoFestivo = 0;
+
   const detalle = [];
 
   for (const programacion of programaciones) {
     const fecha = textoFecha(programacion.fecha);
+
     if (programacion.tipoProgramacion === "DESCANSO") {
       totalHorasDescansoRemunerado += horasDescanso;
-      detalle.push({ fecha, tipoProgramacion: "DESCANSO", horasTrabajadas: 0, incapacidad: false });
+      detalle.push({
+        fecha,
+        tipoProgramacion: "DESCANSO",
+        horasTrabajadas: 0,
+        incapacidad: false,
+      });
       continue;
     }
+
     if (tieneIncapacidad(fecha, novedades)) {
-      detalle.push({ fecha, tipoProgramacion: "TRABAJO", horasTrabajadas: 0, incapacidad: true });
+      detalle.push({
+        fecha,
+        tipoProgramacion: "TRABAJO",
+        horasTrabajadas: 0,
+        incapacidad: true,
+      });
       continue;
     }
+
     let trabajadas = 0;
-    for (const bloque of obtenerSegmentosProgramacion({ ...programacion, fecha })) {
+
+    for (const bloque of obtenerSegmentosProgramacion({
+      ...programacion,
+      fecha,
+    })) {
       const descansoObligatorio = bloque.domingo || bloque.festivo;
-      const esExtra = acumuladas >= tope;
+
       trabajadas += bloque.horas;
-      if (!esExtra) {
-        ordinarias += bloque.horas;
-        acumuladas += bloque.horas;
-        // CAMBIO 2: los recargos solo se causan en las horas ORDINARIAS (las extras se pagan completas).
-        if (descansoObligatorio && bloque.nocturna) recargoNocturnoFestivo += bloque.horas;
-        else if (descansoObligatorio) recargoFestivo += bloque.horas;
-        else if (bloque.nocturna) recargoNocturno += bloque.horas;
-      // CAMBIO 3: las extras en domingo cuentan como festivas (antes solo se miraba bloque.festivo).
-      } else if (descansoObligatorio && bloque.nocturna) extraNocturnasFestivas += bloque.horas;
-      else if (descansoObligatorio) extraDiurnasFestivas += bloque.horas;
-      else if (bloque.nocturna) extraNocturnas += bloque.horas;
-      else extraDiurnas += bloque.horas;
+
+      // Separar las horas ordinarias de las extras, respetando el tope.
+      const horasOrdinariasRestantes = Math.max(0, tope - acumuladas);
+      const horasOrdinariasBloque = Math.min(
+        bloque.horas,
+        horasOrdinariasRestantes
+      );
+      const horasExtraBloque = bloque.horas - horasOrdinariasBloque;
+
+      // Clasificar las horas ordinarias y sus recargos.
+      if (horasOrdinariasBloque > 0) {
+        ordinarias += horasOrdinariasBloque;
+        acumuladas += horasOrdinariasBloque;
+
+        if (descansoObligatorio && bloque.nocturna) {
+          recargoNocturnoFestivo += horasOrdinariasBloque;
+        } else if (descansoObligatorio) {
+          recargoFestivo += horasOrdinariasBloque;
+        } else if (bloque.nocturna) {
+          recargoNocturno += horasOrdinariasBloque;
+        }
+      }
+
+      // Clasificar el excedente como horas extras.
+      if (horasExtraBloque > 0) {
+        if (descansoObligatorio && bloque.nocturna) {
+          extraNocturnasFestivas += horasExtraBloque;
+        } else if (descansoObligatorio) {
+          extraDiurnasFestivas += horasExtraBloque;
+        } else if (bloque.nocturna) {
+          extraNocturnas += horasExtraBloque;
+        } else {
+          extraDiurnas += horasExtraBloque;
+        }
+      }
     }
+
     totalHorasTrabajadas += trabajadas;
-    detalle.push({ fecha, tipoProgramacion: "TRABAJO", horasTrabajadas: trabajadas, incapacidad: false });
+
+    detalle.push({
+      fecha,
+      tipoProgramacion: "TRABAJO",
+      horasTrabajadas: trabajadas,
+      incapacidad: false,
+    });
   }
 
   return {
@@ -200,7 +257,11 @@ export function analizarProgramaciones(programaciones, segundo = [], tercero) {
     horasExtraNocturnas: extraNocturnas,
     horasExtraDiurnasFestivas: extraDiurnasFestivas,
     horasExtraNocturnasFestivas: extraNocturnasFestivas,
-    horasExtraTotales: extraDiurnas + extraNocturnas + extraDiurnasFestivas + extraNocturnasFestivas,
+    horasExtraTotales:
+      extraDiurnas +
+      extraNocturnas +
+      extraDiurnasFestivas +
+      extraNocturnasFestivas,
     recargoNocturno,
     recargoFestivo,
     recargoNocturnoFestivo,
@@ -271,9 +332,10 @@ export async function obtenerProgramacionesCumplidas(empleadoId, periodoInicio, 
     where: {
       empleadoId,
       fecha: rangoDelPeriodo(periodoInicio, periodoFin),
+
       OR: [
-        { estado: "CUMPLIDO", tipoProgramacion: "TRABAJO" },
-        { estado: "PROGRAMADO", tipoProgramacion: "DESCANSO" },
+      { estado: "CUMPLIDO", tipoProgramacion: "TRABAJO" },
+      { estado: "CUMPLIDO", tipoProgramacion: "DESCANSO" },
       ],
     },
     include: {

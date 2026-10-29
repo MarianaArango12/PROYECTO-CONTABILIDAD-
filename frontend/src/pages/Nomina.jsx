@@ -73,6 +73,8 @@ export default function Nomina() {
   const [programacionesEmpleado, setProgramacionesEmpleado] =
     useState([]);
 
+  const [periodoConsultado, setPeriodoConsultado] = useState(false);
+
   const [novedadesEmpleado, setNovedadesEmpleado] =
     useState([]);
 
@@ -225,7 +227,7 @@ export default function Nomina() {
 
     setNominaExistente(null);
 
-    setProgramacionesEmpleado([]);
+    setPeriodoConsultado(false);
 
     setNovedadesEmpleado([]);
 
@@ -392,6 +394,8 @@ export default function Nomina() {
           ? programaciones
           : []
       );
+
+      setPeriodoConsultado(true);
 
 
       const novedadesDelPeriodo =
@@ -1027,8 +1031,7 @@ export default function Nomina() {
           PROGRAMACIONES
       ================================================== */}
 
-      {programacionesEmpleado.length > 0 && (
-
+      {periodoConsultado && (
         <div className="card shadow-sm mb-4">
 
           <div className="card-header">
@@ -1042,11 +1045,19 @@ export default function Nomina() {
 
           <div className="card-body">
 
-            <p className="text-muted mb-3">
-              Revise las programaciones del período antes
-              de calcular la nómina. Los descansos no se
-              cuentan como horas trabajadas.
-            </p>
+                    <p className="text-muted mb-3">
+          Revise las programaciones del período antes
+          de calcular la nómina. Los descansos no se
+          cuentan como horas trabajadas.
+        </p>
+
+          {programacionesEmpleado.length === 0 && (
+            <div className="alert alert-warning mb-0">
+              No se encontraron programaciones para el empleado
+              y período seleccionados. Verifique las fechas y
+              que existan programaciones registradas.
+            </div>
+          )}
 
 
             <div className="table-responsive">
@@ -1532,6 +1543,52 @@ export default function Nomina() {
                 </div>
 
               </div>
+
+
+              <div className="col-md-4">
+                <strong>
+                  Auxilio de transporte:
+                </strong>
+                <div>
+                  {formatearDinero(
+                    nominaExistente?.auxilioTransporte ?? 0
+                  )}
+                </div>
+              </div>
+
+              <div className="col-md-4">
+                <strong>
+                  Ingreso base de cotización (IBC):
+                </strong>
+                <div>
+                  {formatearDinero(
+                    nominaExistente?.ingresoBaseCotizacion ?? 0
+                  )}
+                </div>
+              </div>
+
+              <div className="col-md-4">
+                <strong>
+                  Salud:
+                </strong>
+                <div>
+                  {formatearDinero(
+                    nominaExistente.salud
+                  )}
+                </div>
+              </div>
+
+              <div className="col-md-4">
+                <strong>
+                  Pensión:
+                </strong>
+                <div>
+                  {formatearDinero(
+                    nominaExistente.pension
+                  )}
+                </div>
+              </div>
+
 
 
               <div className="col-md-4">
@@ -2374,6 +2431,44 @@ export default function Nomina() {
                     <strong>
                       Días de incapacidad:
                     </strong>
+
+
+                    <div className="col-md-4">
+                      <strong>Auxilio de transporte:</strong>
+                      <div>
+                        {formatearDinero(
+                          nominaExistente?.auxilioTransporte ?? 0
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="col-md-4">
+                      <strong>Ingreso base de cotización (IBC):</strong>
+                      <div>
+                        {formatearDinero(
+                          nominaExistente?.ingresoBaseCotizacion ?? 0
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="col-md-4">
+                      <strong>Salud:</strong>
+                      <div>
+                        {formatearDinero(
+                          nominaExistente?.salud ?? 0
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="col-md-4">
+                      <strong>Pensión:</strong>
+                      <div>
+                        {formatearDinero(
+                          nominaExistente?.pension ?? 0
+                        )}
+                      </div>
+                    </div>
+
 
                     <div>
                       {mostrarCantidad(
