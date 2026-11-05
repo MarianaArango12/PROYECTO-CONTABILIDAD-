@@ -38,7 +38,7 @@ function Login() {
 
         <h1>SIGOAR</h1>
         <p className="login-subtitle">
-          Sistema de integracion y gestion de obras 
+          Sistema de integracion de gestion operativa y administrativa
         </p>
 
         <div className="login-divider" />

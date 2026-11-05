@@ -18,11 +18,30 @@ export async function crearNovedad(req, res) {
 
     const empresaId = req.usuario.empresaId;
 
+    console.log('FECHA RECIBIDA EN NOVEDAD:', fecha);
+    console.log('FECHA CONVERTIDA:', new Date(fecha).toISOString());
+
     if (!empleadoId || !categoria || !tipo || !fecha) {
       return res.status(400).json({
         error: 'empleadoId, categoria, tipo y fecha son obligatorios'
       });
     }
+
+    if (tipo === 'INCAPACIDAD') {
+    const dias = Number(cantidad);
+
+    if (
+      cantidad === null ||
+      cantidad === undefined ||
+      cantidad === '' ||
+      !Number.isInteger(dias) ||
+      dias <= 0
+    ) {
+      return res.status(400).json({
+        error: 'La incapacidad debe tener una cantidad de días enteros mayor que cero'
+      });
+    }
+  }
 
     if (!empresaId) {
       return res.status(403).json({
@@ -197,9 +216,11 @@ export async function obtenerNovedad(req, res) {
 // APROBAR NOVEDAD
 // ============================================================
 
+
 export async function aprobarNovedad(req, res) {
   try {
     const { id } = req.params;
+    const { remunerada } = req.body;
     const empresaId = req.usuario.empresaId;
 
     if (!empresaId) {
@@ -229,12 +250,26 @@ export async function aprobarNovedad(req, res) {
       });
     }
 
+    // La calamidad familiar requiere decidir si es remunerada.
+    if (
+      novedad.tipo === 'CALAMIDAD_FAMILIAR' &&
+      typeof remunerada !== 'boolean'
+    ) {
+      return res.status(400).json({
+        error: 'Debes indicar si la calamidad familiar es remunerada o no'
+      });
+    }
+
     const novedadActualizada = await prisma.novedad.update({
       where: {
         id
       },
       data: {
         estado: 'APROBADA',
+        remunerada:
+          novedad.tipo === 'CALAMIDAD_FAMILIAR'
+            ? remunerada
+            : null,
         revisadoPorId: req.usuario.id,
         revisadoEn: new Date()
       },

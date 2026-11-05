@@ -1,9 +1,12 @@
 import prisma from "../config/database.js";
 import {
   obtenerNovedadesAprobadas,
+  obtenerHistorialIncapacidades,
+  obtenerHistorialCalamidades,
   obtenerProgramacionesCumplidas,
   analizarProgramaciones,
   calcularIncapacidades,
+  calcularDescuentoCalamidad,
 } from "../services/nomina.service.js";
 import { PARAMETROS_LABORALES } from "../config/parametrosLaborales.js";
 
@@ -12,37 +15,73 @@ function redondearMoneda(valor) {
 }
 
 function diaUtc(valor, finDelDia) {
-  const texto = valor instanceof Date ? valor.toISOString().slice(0, 10) : String(valor).slice(0, 10);
-  return new Date(`${texto}T${finDelDia ? "23:59:59.999" : "00:00:00.000"}Z`);
+  const texto =
+    valor instanceof Date
+      ? valor.toISOString().slice(0, 10)
+      : String(valor).slice(0, 10);
+
+  return new Date(
+    `${texto}T${finDelDia ? "23:59:59.999" : "00:00:00.000"}Z`
+  );
 }
 
 function diasDelPeriodo(inicio, fin) {
-  const desde = Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth(), inicio.getUTCDate());
-  const hasta = Date.UTC(fin.getUTCFullYear(), fin.getUTCMonth(), fin.getUTCDate());
+  const desde = Date.UTC(
+    inicio.getUTCFullYear(),
+    inicio.getUTCMonth(),
+    inicio.getUTCDate()
+  );
+  const hasta = Date.UTC(
+    fin.getUTCFullYear(),
+    fin.getUTCMonth(),
+    fin.getUTCDate()
+  );
+
   return Math.round((hasta - desde) / 86400000) + 1;
 }
 
 function calcularAuxilio(salario, dias) {
   const minimo = PARAMETROS_LABORALES.salarioMinimo ?? 1750905;
+
   if (Number(salario) > minimo * 2) return 0;
-  const auxilioQuincena = PARAMETROS_LABORALES.auxilioQuincena ?? 124548;
-  return redondearMoneda((auxilioQuincena / 15) * Math.min(dias, 30));
+
+  const auxilioQuincena =
+    PARAMETROS_LABORALES.auxilioQuincena ?? 124548;
+
+  return redondearMoneda(
+    (auxilioQuincena / 15) * Math.min(dias, 30)
+  );
 }
 
 function calcularValoresNomina(analisisProgramaciones, salarioBase) {
   const salario = Number(salarioBase);
-  const valorHoraSinRedondear = salario / PARAMETROS_LABORALES.horasMensuales;
+  const valorHoraSinRedondear =
+    salario / PARAMETROS_LABORALES.horasMensuales;
 
   const horasExtraSinRedondear =
-    analisisProgramaciones.horasExtraDiurnas * valorHoraSinRedondear * (1 + PARAMETROS_LABORALES.horasExtra.diurna) +
-    analisisProgramaciones.horasExtraNocturnas * valorHoraSinRedondear * (1 + PARAMETROS_LABORALES.horasExtra.nocturna) +
-    analisisProgramaciones.horasExtraDiurnasFestivas * valorHoraSinRedondear * (1 + PARAMETROS_LABORALES.horasExtra.festivaDiurna) +
-    analisisProgramaciones.horasExtraNocturnasFestivas * valorHoraSinRedondear * (1 + PARAMETROS_LABORALES.horasExtra.festivaNocturna);
+    analisisProgramaciones.horasExtraDiurnas *
+      valorHoraSinRedondear *
+      (1 + PARAMETROS_LABORALES.horasExtra.diurna) +
+    analisisProgramaciones.horasExtraNocturnas *
+      valorHoraSinRedondear *
+      (1 + PARAMETROS_LABORALES.horasExtra.nocturna) +
+    analisisProgramaciones.horasExtraDiurnasFestivas *
+      valorHoraSinRedondear *
+      (1 + PARAMETROS_LABORALES.horasExtra.festivaDiurna) +
+    analisisProgramaciones.horasExtraNocturnasFestivas *
+      valorHoraSinRedondear *
+      (1 + PARAMETROS_LABORALES.horasExtra.festivaNocturna);
 
   const recargosSinRedondear =
-    analisisProgramaciones.recargoNocturno * valorHoraSinRedondear * PARAMETROS_LABORALES.recargos.nocturno +
-    analisisProgramaciones.recargoFestivo * valorHoraSinRedondear * PARAMETROS_LABORALES.recargos.festivo +
-    analisisProgramaciones.recargoNocturnoFestivo * valorHoraSinRedondear * PARAMETROS_LABORALES.recargos.nocturnoFestivo;
+    analisisProgramaciones.recargoNocturno *
+      valorHoraSinRedondear *
+      PARAMETROS_LABORALES.recargos.nocturno +
+    analisisProgramaciones.recargoFestivo *
+      valorHoraSinRedondear *
+      PARAMETROS_LABORALES.recargos.festivo +
+    analisisProgramaciones.recargoNocturnoFestivo *
+      valorHoraSinRedondear *
+      PARAMETROS_LABORALES.recargos.nocturnoFestivo;
 
   return {
     valorHora: redondearMoneda(valorHoraSinRedondear),
@@ -61,9 +100,8 @@ function calcularDetalleConceptos(analisis, salarioBase, totales) {
   function crearLinea(horas, porcentaje, incluyeBase) {
     const cantidad = Number(horas || 0);
     const factor = Number(porcentaje || 0);
-    const tarifaExacta = valorHoraExacto * (
-      incluyeBase ? 1 + factor : factor
-    );
+    const tarifaExacta =
+      valorHoraExacto * (incluyeBase ? 1 + factor : factor);
 
     return {
       horas: cantidad,
@@ -84,8 +122,6 @@ function calcularDetalleConceptos(analisis, salarioBase, totales) {
       0
     );
 
-    // Compensa el redondeo para que el detalle coincida
-    // exactamente con el total calculado por la nómina.
     lineas[lineas.length - 1].valorTotal += totalEsperado - suma;
   }
 
@@ -197,36 +233,76 @@ function calcularDetalleConceptos(analisis, salarioBase, totales) {
   return { detalleHorasExtra, detalleRecargos };
 }
 
-function calcularSalarioCausado(salarioBase, incapacidad, diasPeriodo) {
+function calcularSalarioCausado(
+  salarioBase,
+  incapacidad,
+  diasPeriodo
+) {
   const salario = Number(salarioBase);
   const valorDia = salario / 30;
   const dias = Math.min(Number(diasPeriodo) || 0, 30);
   const diasIncapacidad = Number(incapacidad?.cantidadDias ?? 0);
   const descuentoSalario = valorDia * diasIncapacidad;
-  const salarioCausado = valorDia * dias - descuentoSalario + Number(incapacidad?.valorTotal ?? 0);
+  const salarioCausado =
+    valorDia * dias -
+    descuentoSalario +
+    Number(incapacidad?.valorTotal ?? 0);
 
   return { valorDia, descuentoSalario, salarioCausado, dias };
 }
 
-function totalesDeNomina({ salarioCausado, horasExtra, recargos, bono, descuento, auxilio }) {
-  const ibc = redondearMoneda(Math.max(0, salarioCausado + horasExtra + recargos));
+function totalesDeNomina({
+  salarioCausado,
+  horasExtra,
+  recargos,
+  bono,
+  descuento,
+  auxilio,
+}) {
+  const ibc = redondearMoneda(
+    Math.max(0, salarioCausado + horasExtra + recargos)
+  );
+
   const salud = redondearMoneda(
-  ibc * PARAMETROS_LABORALES.aportesTrabajador.salud
-);
+    ibc * PARAMETROS_LABORALES.aportesTrabajador.salud
+  );
 
   const pension = redondearMoneda(
-  ibc * PARAMETROS_LABORALES.aportesTrabajador.pension
-);
-  const totalDevengado = redondearMoneda(salarioCausado + horasExtra + recargos + bono +                          auxilio);
-  const totalDeducciones = redondearMoneda(salud + pension + descuento);
-  const netoPagar = redondearMoneda(totalDevengado - totalDeducciones);
+    ibc * PARAMETROS_LABORALES.aportesTrabajador.pension
+  );
 
-  return { ibc, salud, pension, totalDevengado, totalDeducciones, netoPagar };
+  const totalDevengado = redondearMoneda(
+    salarioCausado + horasExtra + recargos + bono + auxilio
+  );
+
+  const totalDeducciones = redondearMoneda(
+    salud + pension + descuento
+  );
+
+  const netoPagar = redondearMoneda(
+    totalDevengado - totalDeducciones
+  );
+
+  return {
+    ibc,
+    salud,
+    pension,
+    totalDevengado,
+    totalDeducciones,
+    netoPagar,
+  };
 }
 
 export async function crearNomina(req, res) {
   try {
-    const { empleadoId, periodoInicio, periodoFin, salarioBase, bonificaciones, descuentos } = req.body;
+    const {
+      empleadoId,
+      periodoInicio,
+      periodoFin,
+      salarioBase,
+      bonificaciones,
+      descuentos,
+    } = req.body;
 
     if (!empleadoId || !periodoInicio || !periodoFin) {
       return res.status(400).json({
@@ -239,7 +315,9 @@ export async function crearNomina(req, res) {
     });
 
     if (!empleado) {
-      return res.status(404).json({ error: "Empleado no encontrado" });
+      return res.status(404).json({
+        error: "Empleado no encontrado",
+      });
     }
 
     if (!empleado.activo) {
@@ -248,11 +326,46 @@ export async function crearNomina(req, res) {
       });
     }
 
-    const inicio = diaUtc(periodoInicio, false);
-    const fin = diaUtc(periodoFin, false);
+    // Normalizar las fechas del período.
+    const fechaInicioNormalizada = String(periodoInicio).slice(0, 10);
+    const inicio = diaUtc(fechaInicioNormalizada, false);
 
-    if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) {
-      return res.status(400).json({ error: "Las fechas del periodo no son válidas" });
+    let fechaFinNormalizada = String(periodoFin).slice(0, 10);
+
+    const [anioInicio, mesInicio, diaInicio] =
+      fechaInicioNormalizada.split("-").map(Number);
+
+    const [anioFin, mesFin, diaFin] =
+      fechaFinNormalizada.split("-").map(Number);
+
+    const ultimoDiaMes = new Date(
+      Date.UTC(anioFin, mesFin, 0)
+    ).getUTCDate();
+
+    // Si la segunda quincena termina el día 30 de un mes
+    // de 31 días, usar el último día del mes.
+    if (
+      diaInicio === 16 &&
+      anioInicio === anioFin &&
+      mesInicio === mesFin &&
+      diaFin === 30 &&
+      ultimoDiaMes === 31
+    ) {
+      fechaFinNormalizada =
+        `${anioFin}-${String(mesFin).padStart(2, "0")}-${String(
+          ultimoDiaMes
+        ).padStart(2, "0")}`;
+    }
+
+    const fin = diaUtc(fechaFinNormalizada, false);
+
+    if (
+      Number.isNaN(inicio.getTime()) ||
+      Number.isNaN(fin.getTime())
+    ) {
+      return res.status(400).json({
+        error: "Las fechas del periodo no son válidas",
+      });
     }
 
     if (inicio > fin) {
@@ -261,26 +374,177 @@ export async function crearNomina(req, res) {
       });
     }
 
-    const nominaExistente = await prisma.nomina.findFirst({
+    // Validar que el período corresponda a una quincena completa.
+    const mismoMes =
+      anioInicio === anioFin &&
+      mesInicio === mesFin;
+
+    const primeraQuincena =
+      mismoMes &&
+      diaInicio === 1 &&
+      diaFin === 15;
+
+    const segundaQuincena =
+      mismoMes &&
+      diaInicio === 16 &&
+      Number(fechaFinNormalizada.slice(8, 10)) === ultimoDiaMes;
+
+    if (!primeraQuincena && !segundaQuincena) {
+      return res.status(400).json({
+        error:
+          "El período debe corresponder a una quincena completa: del 1 al 15 o del 16 al último día del mes.",
+      });
+    }
+
+    // Buscar cualquier nómina del empleado que se cruce
+    // con el período solicitado.
+    const nominasExistentes = await prisma.nomina.findMany({
       where: {
         empleadoId,
-        periodoInicio: { gte: inicio, lte: diaUtc(periodoInicio, true) },
-        periodoFin: { gte: fin, lte: diaUtc(periodoFin, true) },
+        periodoInicio: {
+          lte: diaUtc(fechaFinNormalizada, true),
+        },
+        periodoFin: {
+          gte: inicio,
+        },
+      },
+      select: {
+        id: true,
+        periodoInicio: true,
+        periodoFin: true,
+        estado: true,
       },
     });
 
-    const novedades = await obtenerNovedadesAprobadas(empleadoId, inicio, fin);
-    const programaciones = await obtenerProgramacionesCumplidas(empleadoId, inicio, fin);
-    const analisisProgramaciones = analizarProgramaciones(programaciones, {}, novedades);
+    // Si hay más de una nómina superpuesta, no modificar ninguna.
+    if (nominasExistentes.length > 1) {
+      return res.status(409).json({
+        error:
+          "Existen varias nóminas que se cruzan con este período. Revise los registros antes de continuar.",
+        nominas: nominasExistentes,
+      });
+    }
 
-    const salario = redondearMoneda(Number(salarioBase ?? empleado.salarioBase));
-    const incapacidad = calcularIncapacidades(novedades, salario);
+    const nominaExistente = nominasExistentes[0] ?? null;
+
+    if (nominaExistente) {
+      const inicioExistente = nominaExistente.periodoInicio
+        .toISOString()
+        .slice(0, 10);
+
+      const finExistente = nominaExistente.periodoFin
+        .toISOString()
+        .slice(0, 10);
+
+      const mismoPeriodo =
+        inicioExistente === fechaInicioNormalizada &&
+        finExistente === fechaFinNormalizada;
+
+      if (!mismoPeriodo) {
+        return res.status(409).json({
+          error:
+            "Ya existe una nómina con un período que se cruza con el solicitado. No se creó ni modificó ninguna nómina.",
+          nomina: nominaExistente,
+        });
+      }
+
+      if (nominaExistente.estado !== "CALCULADA") {
+        return res.status(409).json({
+          error:
+            `La nómina existente está en estado ${nominaExistente.estado}. Solo se pueden recalcular nóminas CALCULADAS.`,
+        });
+      }
+    }
+
+    const novedades = await obtenerNovedadesAprobadas(
+      empleadoId,
+      inicio,
+      fin
+    );
+
+    const historialIncapacidades = await obtenerHistorialIncapacidades(
+      empleadoId,
+      fin
+    );
+
+    const historialCalamidades = await obtenerHistorialCalamidades(
+      empleadoId,
+      fin
+    );
+
+    const programaciones = await obtenerProgramacionesCumplidas(
+      empleadoId,
+      inicio,
+      fin
+    );
+
+    const salario = redondearMoneda(
+      Number(nomina.empleado.salarioBase)
+    );
+
+    const incapacidad = calcularIncapacidades(
+      historialIncapacidades,
+      salario,
+      inicio,
+      fin
+    );
+
+    const fechasIncapacidad = incapacidad.detalle.map(
+      (item) => item.fecha
+    );
+
+    const fechasDescanso = programaciones
+      .filter(
+        (programacion) =>
+          programacion.tipoProgramacion === "DESCANSO"
+      )
+      .map((programacion) =>
+        programacion.fecha.toISOString().slice(0, 10)
+      );
+
+      const calamidad = calcularDescuentoCalamidad(
+        historialCalamidades,
+        salario,
+        inicio,
+        fin,
+        [...fechasIncapacidad, ...fechasDescanso]
+      );
+
+      const descuentoCalamidad = redondearMoneda(
+        calamidad.valorTotal
+      );
+
+      const novedadesParaAnalisis = [
+        ...new Map(
+          [...novedades, ...historialCalamidades].map(
+            (novedad) => [novedad.id, novedad]
+          )
+        ).values(),
+      ];
+
+      const analisisProgramaciones = analizarProgramaciones(
+      programaciones,
+      {},
+      novedadesParaAnalisis,
+      fechasIncapacidad
+    );
+
+
     const dias = diasDelPeriodo(inicio, fin);
-    const { valorDia, descuentoSalario, salarioCausado } = calcularSalarioCausado(salario, incapacidad, dias);
 
+    const {
+      valorDia,
+      descuentoSalario,
+      salarioCausado: salarioCausadoBase,
+    } = calcularSalarioCausado(salario, incapacidad, dias);
+
+    const salarioCausado = Math.max(
+      0,
+      salarioCausadoBase - descuentoCalamidad
+    );
 
     const { valorHora, horasExtra, recargos } =
-    calcularValoresNomina(analisisProgramaciones, salario);
+      calcularValoresNomina(analisisProgramaciones, salario);
 
     const { detalleHorasExtra, detalleRecargos } =
       calcularDetalleConceptos(analisisProgramaciones, salario, {
@@ -293,13 +557,27 @@ export async function crearNomina(req, res) {
     const bono = redondearMoneda(Number(bonificaciones ?? 0));
     const descuento = redondearMoneda(Number(descuentos ?? 0));
 
-    if (salario < 0 || horasExtra < 0 || recargos < 0 || incapacidad.valorTotal < 0 || bono < 0 || descuento < 0) {
+    if (
+      salario < 0 ||
+      horasExtra < 0 ||
+      recargos < 0 ||
+      incapacidad.valorTotal < 0 ||
+      bono < 0 ||
+      descuento < 0
+    ) {
       return res.status(400).json({
         error: "Los valores monetarios no pueden ser negativos",
       });
     }
 
-    const { ibc, salud, pension, totalDevengado, totalDeducciones, netoPagar } = totalesDeNomina({
+    const {
+      ibc,
+      salud,
+      pension,
+      totalDevengado,
+      totalDeducciones,
+      netoPagar,
+    } = totalesDeNomina({
       salarioCausado,
       horasExtra,
       recargos,
@@ -310,17 +588,15 @@ export async function crearNomina(req, res) {
 
 
     const datos = {
-      salarioBase: salario,
+      salarioBase: Number((salario / 2).toFixed(2)),
       horasExtra,
       recargos,
       bonificaciones: bono,
       descuentos: descuento,
-
       auxilioTransporte: auxilio,
       ingresoBaseCotizacion: ibc,
       salud,
       pension,
-
       totalDevengado,
       totalDeducciones,
       netoPagar,
@@ -348,17 +624,28 @@ export async function crearNomina(req, res) {
           include: includeEmpleado,
         })
       : await prisma.nomina.create({
-          data: { empleadoId, periodoInicio: inicio, periodoFin: fin, ...datos },
+          data: {
+            empleadoId,
+            periodoInicio: inicio,
+            periodoFin: fin,
+            ...datos,
+          },
           include: includeEmpleado,
         });
 
     return res.status(nominaExistente ? 200 : 201).json({
-      mensaje: nominaExistente ? "Nómina recalculada correctamente" : "Nómina creada correctamente",
+      mensaje: nominaExistente
+        ? "Nómina recalculada correctamente"
+        : "Nómina creada correctamente",
       nomina,
-      analisisProgramaciones,detalleHorasExtra,detalleRecargos,
+      analisisProgramaciones,
+      detalleHorasExtra,
+      detalleRecargos,
       valorHora,
       novedades,
       incapacidad,
+      calamidad,
+      descuentoCalamidad,
       auxilio,
       salud,
       pension,
@@ -370,6 +657,7 @@ export async function crearNomina(req, res) {
     });
   } catch (error) {
     console.error("ERROR CREANDO NÓMINA:", error);
+
     return res.status(500).json({
       error: "Error al crear la nómina",
       detalle: error.message,
@@ -398,6 +686,7 @@ export async function listarNominas(req, res) {
     return res.json(nominas);
   } catch (error) {
     console.error("ERROR LISTANDO NÓMINAS:", error);
+
     return res.status(500).json({
       error: "Error al listar las nóminas",
       detalle: error.message,
@@ -408,6 +697,7 @@ export async function listarNominas(req, res) {
 export async function obtenerNomina(req, res) {
   try {
     const { id } = req.params;
+
     const nomina = await prisma.nomina.findUnique({
       where: { id },
       include: {
@@ -425,12 +715,70 @@ export async function obtenerNomina(req, res) {
     });
 
     if (!nomina) {
-      return res.status(404).json({ error: "Nómina no encontrada" });
+      return res.status(404).json({
+        error: "Nómina no encontrada",
+      });
     }
 
-    return res.json(nomina);
+    const inicio = nomina.periodoInicio;
+    const fin = nomina.periodoFin;
+
+    const [
+      historialIncapacidades,
+      historialCalamidades,
+      programaciones,
+    ] = await Promise.all([
+      obtenerHistorialIncapacidades(nomina.empleadoId, fin),
+      obtenerHistorialCalamidades(nomina.empleadoId, fin),
+      obtenerProgramacionesCumplidas(
+        nomina.empleadoId,
+        inicio,
+        fin
+      ),
+    ]);
+
+    const salario = redondearMoneda(
+      Number(nomina.empleado.salarioBase)
+    );
+
+    const incapacidad = calcularIncapacidades(
+      historialIncapacidades,
+      salario,
+      inicio,
+      fin
+    );
+
+    const fechasIncapacidad = incapacidad.detalle.map(
+      (item) => item.fecha
+    );
+
+    const fechasDescanso = programaciones
+      .filter(
+        (programacion) =>
+          programacion.tipoProgramacion === "DESCANSO"
+      )
+      .map((programacion) =>
+        programacion.fecha.toISOString().slice(0, 10)
+      );
+
+    const calamidad = calcularDescuentoCalamidad(
+      historialCalamidades,
+      salario,
+      inicio,
+      fin,
+      [...fechasIncapacidad, ...fechasDescanso]
+    );
+
+    return res.json({
+      ...nomina,
+      calamidad,
+      descuentoCalamidad: redondearMoneda(
+        calamidad.valorTotal
+      ),
+    });
   } catch (error) {
     console.error("ERROR OBTENIENDO NÓMINA:", error);
+
     return res.status(500).json({
       error: "Error al obtener la nómina",
       detalle: error.message,
@@ -441,10 +789,111 @@ export async function obtenerNomina(req, res) {
 export async function actualizarNomina(req, res) {
   try {
     const { id } = req.params;
-    const nomina = await prisma.nomina.findUnique({ where: { id } });
+
+    const nomina = await prisma.nomina.findUnique({
+      where: { id },
+    });
 
     if (!nomina) {
-      return res.status(404).json({ error: "Nómina no encontrada" });
+      return res.status(404).json({
+        error: "Nómina no encontrada",
+      });
+    }
+
+    // Solo se permite recalcular nóminas en estado CALCULADA.
+    if (nomina.estado !== "CALCULADA") {
+      return res.status(409).json({
+        error: `No se puede recalcular una nómina en estado ${nomina.estado}. Solo se permiten nóminas CALCULADAS.`,
+      });
+    }
+
+    // Verificar si existen nóminas duplicadas para la misma quincena.
+    const fechaInicioNormalizada = nomina.periodoInicio
+      .toISOString()
+      .slice(0, 10);
+
+    let fechaFinNormalizada = nomina.periodoFin
+      .toISOString()
+      .slice(0, 10);
+
+    const [anioInicio, mesInicio, diaInicio] =
+      fechaInicioNormalizada.split("-").map(Number);
+
+    const [anioFin, mesFin, diaFin] =
+      fechaFinNormalizada.split("-").map(Number);
+
+    const ultimoDiaMes = new Date(
+      Date.UTC(anioFin, mesFin, 0)
+    ).getUTCDate();
+
+    if (
+      diaInicio === 16 &&
+      anioInicio === anioFin &&
+      mesInicio === mesFin &&
+      diaFin === 30 &&
+      ultimoDiaMes === 31
+    ) {
+      fechaFinNormalizada =
+        `${anioFin}-${String(mesFin).padStart(2, "0")}-${String(
+          ultimoDiaMes
+        ).padStart(2, "0")}`;
+    }
+
+    // Validar que la nómina corresponda a una quincena completa.
+    const mismoMes =
+      anioInicio === anioFin &&
+      mesInicio === mesFin;
+
+    const ultimoDiaPeriodo = new Date(
+      Date.UTC(anioInicio, mesInicio, 0)
+    ).getUTCDate();
+
+    const diaFinNormalizado = Number(
+      fechaFinNormalizada.slice(8, 10)
+    );
+
+    const primeraQuincena =
+      mismoMes &&
+      diaInicio === 1 &&
+      diaFinNormalizado === 15;
+
+    const segundaQuincena =
+      mismoMes &&
+      diaInicio === 16 &&
+      diaFinNormalizado === ultimoDiaPeriodo;
+
+    if (!primeraQuincena && !segundaQuincena) {
+      return res.status(409).json({
+        error:
+          "No se puede recalcular esta nómina porque su período no corresponde a una quincena completa. Revise el registro histórico.",
+      });
+    }
+
+    const nominasDelPeriodo = await prisma.nomina.findMany({
+      where: {
+        empleadoId: nomina.empleadoId,
+        periodoInicio: {
+          gte: diaUtc(fechaInicioNormalizada, false),
+          lte: diaUtc(fechaInicioNormalizada, true),
+        },
+        periodoFin: {
+          gte: diaUtc(fechaInicioNormalizada, false),
+          lte: diaUtc(fechaFinNormalizada, true),
+        },
+      },
+      select: {
+        id: true,
+        periodoInicio: true,
+        periodoFin: true,
+      },
+    });
+
+    if (nominasDelPeriodo.length > 1) {
+      return res.status(409).json({
+        error:
+          "Existen varias nóminas para esta quincena. No se puede recalcular hasta revisar los registros duplicados.",
+        nominas: nominasDelPeriodo,
+      });
     }
 
     const empleado = await prisma.empleado.findUnique({
@@ -452,26 +901,126 @@ export async function actualizarNomina(req, res) {
     });
 
     if (!empleado) {
-      return res.status(404).json({ error: "Empleado no encontrado" });
+      return res.status(404).json({
+        error: "Empleado no encontrado",
+      });
     }
 
-    const novedades = await obtenerNovedadesAprobadas(nomina.empleadoId, diaUtc(nomina.periodoInicio, false), diaUtc(nomina.periodoFin, true));
-    const programaciones = await obtenerProgramacionesCumplidas(nomina.empleadoId, diaUtc(nomina.periodoInicio, false), diaUtc(nomina.periodoFin, true));
-    const analisisProgramaciones = analizarProgramaciones(programaciones, {}, novedades);
+    const inicio = diaUtc(nomina.periodoInicio, false);
+    const fin = diaUtc(nomina.periodoFin, true);
+
+    const novedades = await obtenerNovedadesAprobadas(
+      nomina.empleadoId,
+      inicio,
+      fin
+    );
+
+    const historialIncapacidades = await obtenerHistorialIncapacidades(
+      nomina.empleadoId,
+      fin
+    );
+
+    const historialCalamidades = await obtenerHistorialCalamidades(
+    nomina.empleadoId,
+    fin
+  );
+
+    const programaciones = await obtenerProgramacionesCumplidas(
+      nomina.empleadoId,
+      inicio,
+      fin
+    );
+
     const salarioBase = redondearMoneda(Number(empleado.salarioBase));
-    const incapacidad = calcularIncapacidades(novedades, salarioBase);
-    const dias = diasDelPeriodo(diaUtc(nomina.periodoInicio, false), diaUtc(nomina.periodoFin, false));
-    const { valorDia, descuentoSalario, salarioCausado } = calcularSalarioCausado(salarioBase, incapacidad, dias);
-    const { valorHora, horasExtra, recargos } = calcularValoresNomina(analisisProgramaciones, salarioBase);
+
+    const incapacidad = calcularIncapacidades(
+      historialIncapacidades,
+      salarioBase,
+      inicio,
+      fin
+    );
+
+    const fechasIncapacidad = incapacidad.detalle.map(
+      (item) => item.fecha
+    );
+
+    const fechasDescanso = programaciones
+  .filter(
+    (programacion) =>
+      programacion.tipoProgramacion === "DESCANSO"
+  )
+  .map((programacion) =>
+    programacion.fecha.toISOString().slice(0, 10)
+  );
+
+const calamidad = calcularDescuentoCalamidad(
+  historialCalamidades,
+  salarioBase,
+  inicio,
+  fin,
+  [...fechasIncapacidad, ...fechasDescanso]
+);
+
+const descuentoCalamidad = redondearMoneda(
+  calamidad.valorTotal
+);
+
+const novedadesParaAnalisis = [
+  ...new Map(
+    [...novedades, ...historialCalamidades].map(
+      (novedad) => [novedad.id, novedad]
+    )
+  ).values(),
+];
+
+const analisisProgramaciones = analizarProgramaciones(
+  programaciones,
+  {},
+  novedadesParaAnalisis,
+  fechasIncapacidad
+);
+
+    const dias = diasDelPeriodo(
+      diaUtc(nomina.periodoInicio, false),
+      diaUtc(nomina.periodoFin, false)
+    );
+
+    const {
+      valorDia,
+      descuentoSalario,
+      salarioCausado: salarioCausadoBase,
+    } = calcularSalarioCausado(salarioBase, incapacidad, dias);
+
+    const salarioCausado = Math.max(
+      0,
+      salarioCausadoBase - descuentoCalamidad
+    );
+
+    const { valorHora, horasExtra, recargos } =
+      calcularValoresNomina(analisisProgramaciones, salarioBase);
+
     const { detalleHorasExtra, detalleRecargos } =
       calcularDetalleConceptos(analisisProgramaciones, salarioBase, {
         horasExtra,
         recargos,
       });
+
     const auxilio = calcularAuxilio(salarioBase, dias);
-    const bonificaciones = redondearMoneda(Number(nomina.bonificaciones || 0));
-    const descuentos = redondearMoneda(Number(nomina.descuentos || 0));
-    const { ibc, salud, pension, totalDevengado, totalDeducciones, netoPagar } = totalesDeNomina({
+    const bonificaciones = redondearMoneda(
+      Number(nomina.bonificaciones || 0)
+    );
+    const descuentos = redondearMoneda(
+      Number(nomina.descuentos || 0)
+    );
+
+    const {
+      ibc,
+      salud,
+      pension,
+      totalDevengado,
+      totalDeducciones,
+      netoPagar,
+    } = totalesDeNomina({
       salarioCausado,
       horasExtra,
       recargos,
@@ -483,22 +1032,19 @@ export async function actualizarNomina(req, res) {
     const nominaActualizada = await prisma.nomina.update({
       where: { id },
       data: {
-        salarioBase,
+        salarioBase: Number((salarioBase / 2).toFixed(2)),
         horasExtra,
         recargos,
         bonificaciones,
         descuentos,
-
         auxilioTransporte: auxilio,
         ingresoBaseCotizacion: ibc,
         salud,
         pension,
-
         totalDevengado,
         totalDeducciones,
         netoPagar,
       },
-
       include: {
         empleado: {
           select: {
@@ -522,6 +1068,8 @@ export async function actualizarNomina(req, res) {
       detalleRecargos,
       novedades,
       incapacidad,
+      calamidad,
+      descuentoCalamidad,
       auxilio,
       salud,
       pension,
@@ -531,8 +1079,10 @@ export async function actualizarNomina(req, res) {
       descuentoSalario: redondearMoneda(descuentoSalario),
       valorDia: redondearMoneda(valorDia),
     });
+
   } catch (error) {
     console.error("ERROR RECALCULANDO NÓMINA:", error);
+
     return res.status(500).json({
       error: "Error al recalcular la nómina",
       detalle: error.message,
@@ -544,16 +1094,39 @@ export async function cambiarEstadoNomina(req, res) {
   try {
     const { id } = req.params;
     const { estado } = req.body;
-    const estadosPermitidos = ["CALCULADA", "APROBADA", "PAGADA", "ANULADA"];
 
-    if (!estadosPermitidos.includes(estado)) {
-      return res.status(400).json({ error: "Estado de nómina no válido" });
+    // Definir las transiciones permitidas.
+    const transicionesPermitidas = {
+      CALCULADA: ["APROBADA", "ANULADA"],
+      APROBADA: ["PAGADA", "ANULADA"],
+      PAGADA: [],
+      ANULADA: [],
+    };
+
+    const estadosValidos = Object.keys(transicionesPermitidas);
+
+    if (!estadosValidos.includes(estado)) {
+      return res.status(400).json({
+        error: "Estado de nómina no válido",
+      });
     }
 
-    const nomina = await prisma.nomina.findUnique({ where: { id } });
+    const nomina = await prisma.nomina.findUnique({
+      where: { id },
+    });
 
     if (!nomina) {
-      return res.status(404).json({ error: "Nómina no encontrada" });
+      return res.status(404).json({
+        error: "Nómina no encontrada",
+      });
+    }
+
+    const transiciones = transicionesPermitidas[nomina.estado] ?? [];
+
+    if (!transiciones.includes(estado)) {
+      return res.status(409).json({
+        error: `No se puede cambiar una nómina de ${nomina.estado} a ${estado}.`,
+      });
     }
 
     const nominaActualizada = await prisma.nomina.update({
@@ -567,6 +1140,7 @@ export async function cambiarEstadoNomina(req, res) {
     });
   } catch (error) {
     console.error("ERROR CAMBIANDO ESTADO:", error);
+
     return res.status(500).json({
       error: "Error al cambiar el estado de la nómina",
       detalle: error.message,

@@ -41,7 +41,8 @@ export async function crearNovedad(novedad) {
   return datos;
 }
 
-export async function aprobarNovedad(id) {
+
+export async function aprobarNovedad(id, remunerada) {
   const token = localStorage.getItem('token');
 
   const respuesta = await fetch(`${API_URL}/novedades/${id}/aprobar`, {
@@ -50,6 +51,9 @@ export async function aprobarNovedad(id) {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
+    body: JSON.stringify(
+      typeof remunerada === 'boolean' ? { remunerada } : {}
+    ),
   });
 
   const datos = await respuesta.json();
@@ -60,6 +64,7 @@ export async function aprobarNovedad(id) {
 
   return datos;
 }
+
 
 export async function rechazarNovedad(id) {
   const token = localStorage.getItem('token');

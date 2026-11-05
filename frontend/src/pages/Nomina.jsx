@@ -3,7 +3,11 @@ import { useEffect, useState } from 'react';
 import { obtenerEmpleados } from '../services/empleados.service.js';
 import { obtenerProgramacionesPorEmpleado } from '../services/programacion.service.js';
 import { obtenerNovedades } from '../services/novedades.service.js';
-import { obtenerNominas, crearNomina } from '../services/nomina.service.js';
+import {
+  obtenerNominas,
+  obtenerNomina,
+  crearNomina,
+} from '../services/nomina.service.js';
 
 
 // ======================================================
@@ -49,6 +53,42 @@ function obtenerFechaSinHora(fecha) {
   return new Date(fecha)
     .toISOString()
     .slice(0, 10);
+}
+
+
+function normalizarPeriodo(inicio, fin) {
+  const fechaInicio = obtenerFechaSinHora(inicio);
+  const fechaFin = obtenerFechaSinHora(fin);
+
+  if (!fechaInicio || !fechaFin) {
+    return {
+      inicio: fechaInicio,
+      fin: fechaFin,
+    };
+  }
+
+  const [anio, mes, diaInicio] = fechaInicio.split('-').map(Number);
+  const [anioFin, mesFin, diaFin] = fechaFin.split('-').map(Number);
+
+  const ultimoDiaMes = new Date(anio, mes, 0).getDate();
+
+  if (
+    diaInicio === 16 &&
+    anio === anioFin &&
+    mes === mesFin &&
+    diaFin === 30 &&
+    ultimoDiaMes === 31
+  ) {
+    return {
+      inicio: fechaInicio,
+      fin: `${anio}-${String(mes).padStart(2, '0')}-31`,
+    };
+  }
+
+  return {
+    inicio: fechaInicio,
+    fin: fechaFin,
+  };
 }
 
 
@@ -104,6 +144,9 @@ export default function Nomina() {
 
   const [nominaExistente, setNominaExistente] =
     useState(null);
+
+  const [nominasDuplicadas, setNominasDuplicadas] =
+    useState([]);
 
 
   // ====================================================
@@ -227,6 +270,8 @@ export default function Nomina() {
 
     setNominaExistente(null);
 
+    setNominasDuplicadas([]);
+
     setPeriodoConsultado(false);
 
     setNovedadesEmpleado([]);
@@ -294,40 +339,31 @@ export default function Nomina() {
 
 
   // ====================================================
-  // BUSCAR NÓMINA EXISTENTE
+  // BUSCAR NÓMINAS EXISTENTES
   // ====================================================
 
-  function buscarNominaExistente(
+  function buscarNominasExistentes(
     empleadoId,
     inicio,
     fin
   ) {
+    const periodoBuscado =
+      normalizarPeriodo(inicio, fin);
 
-    return nominas.find(nomina => {
-
-      const fechaInicio =
-        obtenerFechaSinHora(
-          nomina.periodoInicio
-        );
-
-      const fechaFin =
-        obtenerFechaSinHora(
+    return nominas.filter(nomina => {
+      const periodoNomina =
+        normalizarPeriodo(
+          nomina.periodoInicio,
           nomina.periodoFin
         );
 
 
       return (
-        nomina.empleadoId ===
-        empleadoId &&
-
-        fechaInicio ===
-        inicio &&
-
-        fechaFin ===
-        fin
+        nomina.empleadoId === empleadoId &&
+        periodoNomina.inicio === periodoBuscado.inicio &&
+        periodoNomina.fin === periodoBuscado.fin
       );
-
-    }) || null;
+    });
   }
 
 
@@ -378,6 +414,45 @@ export default function Nomina() {
       return;
     }
 
+    const [anioInicio, mesInicio, diaInicio] =
+      periodoInicio.split('-').map(Number);
+
+    const [anioFin, mesFin, diaFin] =
+      periodoFin.split('-').map(Number);
+
+    const mismoMes =
+      anioInicio === anioFin &&
+      mesInicio === mesFin;
+
+    const ultimoDiaMes = new Date(
+      Date.UTC(anioInicio, mesInicio, 0)
+    ).getUTCDate();
+
+    const diaFinNormalizado =
+      diaInicio === 16 &&
+      diaFin === 30 &&
+      ultimoDiaMes === 31
+        ? ultimoDiaMes
+        : diaFin;
+
+    const primeraQuincena =
+      mismoMes &&
+      diaInicio === 1 &&
+      diaFinNormalizado === 15;
+
+    const segundaQuincena =
+      mismoMes &&
+      diaInicio === 16 &&
+      diaFinNormalizado === ultimoDiaMes;
+
+    if (!primeraQuincena && !segundaQuincena) {
+      setError(
+        'El período debe corresponder a una quincena completa: del 1 al 15 o del 16 al último día del mes.'
+      );
+
+      return;
+    }
+
 
     try {
 
@@ -411,26 +486,37 @@ export default function Nomina() {
       );
 
 
-      const nominaEncontrada =
-        buscarNominaExistente(
+      const nominasEncontradas =
+        buscarNominasExistentes(
           empleadoSeleccionado.id,
           periodoInicio,
           periodoFin
         );
 
+      setNominaExistente(null);
+      setNominasDuplicadas([]);
 
-      if (nominaEncontrada) {
+      if (nominasEncontradas.length > 1) {
+        setNominasDuplicadas(nominasEncontradas);
 
-        setNominaExistente(
-          nominaEncontrada
+        setError(
+          'Se encontraron varias nóminas para esta quincena. No calcule ni recalcule hasta revisar los registros duplicados.'
         );
+
+        setMensaje('');
+
+      } else if (nominasEncontradas.length === 1) {
+        const nominaCompleta = await obtenerNomina(
+          nominasEncontradas[0].id
+        );
+
+        setNominaExistente(nominaCompleta);
 
         setMensaje(
           'Este período ya tiene una nómina calculada.'
         );
 
       } else {
-
         setMensaje(
           'No existe una nómina calculada para este período.'
         );
@@ -498,19 +584,26 @@ export default function Nomina() {
     }
 
 
-    const nominaEncontrada =
-      buscarNominaExistente(
+    const nominasEncontradas =
+      buscarNominasExistentes(
         empleadoSeleccionado.id,
         periodoInicio,
         periodoFin
       );
 
+    if (nominasEncontradas.length > 1) {
+      setNominaExistente(null);
+      setNominasDuplicadas(nominasEncontradas);
 
-    if (nominaEncontrada) {
-
-      setNominaExistente(
-        nominaEncontrada
+      setError(
+        'Existen varias nóminas para esta quincena. No se puede calcular hasta revisar los duplicados.'
       );
+
+      return;
+    }
+
+    if (nominasEncontradas.length === 1) {
+      setNominaExistente(nominasEncontradas[0]);
 
       setError(
         'Este período ya tiene una nómina calculada.'
@@ -518,6 +611,8 @@ export default function Nomina() {
 
       return;
     }
+
+    setNominasDuplicadas([]);
 
 
     try {
@@ -589,6 +684,14 @@ export default function Nomina() {
     setError('');
     setMensaje('');
 
+    if (nominasDuplicadas.length > 1) {
+      setError(
+        'No se puede recalcular porque existen varias nóminas para esta quincena.'
+      );
+
+      return;
+    }
+
     if (!nominaExistente?.id) {
 
       setError(
@@ -632,15 +735,17 @@ export default function Nomina() {
       const nominaActualizada =
         datos.nomina || datos;
 
-      setNominaExistente(
-        nominaActualizada
+      const nominaCompleta = await obtenerNomina(
+        nominaActualizada.id
       );
+
+      setNominaExistente(nominaCompleta);
 
       setNominas(
         nominasActuales =>
           nominasActuales.map(item =>
-            item.id === nominaActualizada.id
-              ? nominaActualizada
+            item.id === nominaCompleta.id
+              ? nominaCompleta
               : item
           )
       );
@@ -823,6 +928,102 @@ export default function Nomina() {
 
         </div>
       )}
+
+
+        {nominasDuplicadas.length > 1 && (
+          <div className="alert alert-warning" role="alert">
+            <strong>Se encontraron nóminas duplicadas.</strong>
+
+            <p className="mb-3">
+              Hay {nominasDuplicadas.length} registros para el mismo período.
+              No se permitirá calcular ni recalcular hasta revisar los duplicados.
+            </p>
+
+            <div className="row g-3">
+              {nominasDuplicadas.map(nomina => {
+                const formatoMoneda = valor =>
+                  new Intl.NumberFormat('es-CO', {
+                    style: 'currency',
+                    currency: 'COP',
+                    maximumFractionDigits: 0,
+                  }).format(Number(valor || 0));
+
+                return (
+                  <div className="col-12 col-lg-6" key={nomina.id}>
+                    <div className="card h-100 shadow-sm">
+                      <div className="card-body">
+                        <h6 className="card-title">
+                          Nómina registrada
+                        </h6>
+
+                        <p className="small text-muted mb-1">
+                          ID: {nomina.id}
+                        </p>
+
+                        <p className="mb-3">
+                          <strong>Período:</strong>{' '}
+                          {formatearFecha(nomina.periodoInicio)} al{' '}
+                          {formatearFecha(nomina.periodoFin)}
+                        </p>
+
+                        <div className="border-top pt-2">
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Salario base quincenal</span>
+                            <strong>{formatoMoneda(nomina.salarioBase)}</strong>
+                          </div>
+
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Horas extra</span>
+                            <strong>{formatoMoneda(nomina.horasExtra)}</strong>
+                          </div>
+
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Recargos</span>
+                            <strong>{formatoMoneda(nomina.recargos)}</strong>
+                          </div>
+
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Bonificaciones</span>
+                            <strong>{formatoMoneda(nomina.bonificaciones)}</strong>
+                          </div>
+
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Auxilio de transporte</span>
+                            <strong>{formatoMoneda(nomina.auxilioTransporte)}</strong>
+                          </div>
+
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>IBC</span>
+                            <strong>{formatoMoneda(nomina.ingresoBaseCotizacion)}</strong>
+                          </div>
+
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Total devengado</span>
+                            <strong>{formatoMoneda(nomina.totalDevengado)}</strong>
+                          </div>
+
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Total deducciones</span>
+                            <strong>{formatoMoneda(nomina.totalDeducciones)}</strong>
+                          </div>
+
+                          <div className="d-flex justify-content-between border-top pt-2 mt-2">
+                            <strong>Neto a pagar</strong>
+                            <strong className="text-success">
+                              {formatoMoneda(nomina.netoPagar)}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+
 
 
       {/* ==================================================
@@ -1418,16 +1619,18 @@ export default function Nomina() {
                 Nómina existente
               </h5>
 
-              <button
-                type="button"
-                className="btn btn-dark btn-sm"
-                onClick={recalcularNomina}
-                disabled={calculando}
-              >
-                {calculando
-                  ? 'Recalculando...'
-                  : 'Recalcular nómina'}
-              </button>
+              {nominaExistente?.estado === 'CALCULADA' && (
+                <button
+                  type="button"
+                  className="btn btn-dark btn-sm"
+                  onClick={recalcularNomina}
+                  disabled={calculando}
+                >
+                  {calculando
+                    ? 'Recalculando...'
+                    : 'Recalcular nómina'}
+                </button>
+              )}
 
             </div>
 
@@ -1542,6 +1745,18 @@ export default function Nomina() {
                   )}
                 </div>
 
+              </div>
+
+              <div className="col-md-4">
+                <strong>
+                  Descuento por calamidad familiar:
+                </strong>
+
+                <div>
+                  {formatearDinero(
+                    nominaExistente.descuentoCalamidad ?? 0
+                  )}
+                </div>
               </div>
 
 
@@ -2092,6 +2307,19 @@ export default function Nomina() {
 
                 </div>
 
+                  <div className="col-md-4">
+                    <div className="border rounded p-3">
+                      <div className="text-muted">
+                        Descuento por calamidad familiar
+                      </div>
+
+                      <div className="fs-5 fw-bold">
+                        {formatearDinero(
+                          resultadoNomina?.descuentoCalamidad || 0
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
                 <div className="col-md-4">
 

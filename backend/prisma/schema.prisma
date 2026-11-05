@@ -8,19 +8,19 @@ datasource db {
 }
 
 model Empresa {
-  id            String     @id @default(uuid())
-  nit           String     @unique
+  id            String   @id @default(uuid())
+  nit           String   @unique
   razonSocial   String
   direccion     String?
   telefono      String?
   email         String?
-  activo        Boolean    @default(true)
-  creadoEn      DateTime   @default(now())
-  actualizadoEn DateTime   @updatedAt
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
 
-  empleados     Empleado[]
-  usuarios      Usuario[]
-  obras         Obra[]
+  empleados Empleado[]
+  usuarios  Usuario[]
+  obras     Obra[]
 }
 
 model Rol {
@@ -31,110 +31,110 @@ model Rol {
 }
 
 model Usuario {
-  id                 String    @id @default(uuid())
-  nombre             String
-  email              String    @unique
-  password           String
-  activo             Boolean   @default(true)
-  creadoEn           DateTime  @default(now())
+  id       String   @id @default(uuid())
+  nombre   String
+  email    String   @unique
+  password String
+  activo   Boolean  @default(true)
+  creadoEn DateTime @default(now())
 
-  rolId              String
-  empresaId          String
+  rolId     String
+  empresaId String
 
   novedadesCreadas   Novedad[] @relation("NovedadesCreadas")
   novedadesRevisadas Novedad[] @relation("NovedadesRevisadas")
 
-  empresa            Empresa   @relation(fields: [empresaId], references: [id])
-  rol                Rol       @relation(fields: [rolId], references: [id])
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  rol     Rol     @relation(fields: [rolId], references: [id])
 }
 
 model Cargo {
-  id          String     @id @default(uuid())
-  nombre      String     @unique
+  id          String  @id @default(uuid())
+  nombre      String  @unique
   descripcion String?
-  activo      Boolean    @default(true)
+  activo      Boolean @default(true)
 
-  empleados   Empleado[]
+  empleados Empleado[]
 }
 
 model Turno {
-  id               String         @id @default(uuid())
-  nombre           String         @unique
+  id               String    @id @default(uuid())
+  nombre           String    @unique
   descripcion      String?
   horaEntrada      String?
   horaSalida       String?
-  horasProgramadas Decimal?       @db.Decimal(5, 2)
-  jornada          Decimal?       @db.Decimal(5, 2)
+  horasProgramadas Decimal?  @db.Decimal(5, 2)
+  jornada          Decimal?  @db.Decimal(5, 2)
   tipo             TipoTurno
-  activo           Boolean        @default(true)
-  creadoEn         DateTime       @default(now())
-  actualizadoEn    DateTime       @updatedAt
+  activo           Boolean   @default(true)
+  creadoEn         DateTime  @default(now())
+  actualizadoEn    DateTime  @updatedAt
 
-  programaciones   Programacion[]
-  obras            Obra[]
+  programaciones Programacion[]
+  obras          Obra[]
 }
 
 model Obra {
-  id                  String       @id @default(uuid())
-  nombre              String
-  descripcion         String?
-  horasServicio       Decimal      @db.Decimal(5, 2)
-  fechaInicio         DateTime
-  fechaFin            DateTime?
-  activo              Boolean      @default(true)
-  creadoEn            DateTime     @default(now())
-  actualizadoEn       DateTime     @updatedAt
+  id            String    @id @default(uuid())
+  nombre        String
+  descripcion   String?
+  horasServicio Decimal   @db.Decimal(5, 2)
+  fechaInicio   DateTime
+  fechaFin      DateTime?
+  activo        Boolean   @default(true)
+  creadoEn      DateTime  @default(now())
+  actualizadoEn DateTime  @updatedAt
 
-  empresaId           String
-  turnoId             String
+  empresaId String
+  turnoId   String
 
-  empresa             Empresa      @relation(fields: [empresaId], references: [id])
-  turno               Turno        @relation(fields: [turnoId], references: [id])
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  turno   Turno   @relation(fields: [turnoId], references: [id])
 
-  contratos           ContratoEmpleado[]
-  programaciones      Programacion[]
+  contratos      ContratoEmpleado[]
+  programaciones Programacion[]
 }
 
 model Empleado {
-  id                String         @id @default(uuid())
-  nombres            String
-  apellidos          String
-  documento          String         @unique
-  cargo              String?
-  salarioBase        Decimal        @db.Decimal(12, 2)
-  fechaIngreso       DateTime
-  fechaSalida        DateTime?
-  motivoSalida       String?
-  observacionSalida  String?
-  activo              Boolean        @default(true)
+  id                String    @id @default(uuid())
+  nombres           String
+  apellidos         String
+  documento         String    @unique
+  cargo             String?
+  salarioBase       Decimal   @db.Decimal(12, 2)
+  fechaIngreso      DateTime
+  fechaSalida       DateTime?
+  motivoSalida      String?
+  observacionSalida String?
+  activo            Boolean   @default(true)
 
-  empresaId           String
-  cargoId             String?
+  empresaId String
+  cargoId   String?
 
-  cargoCatalogo       Cargo?         @relation(fields: [cargoId], references: [id])
-  empresa             Empresa        @relation(fields: [empresaId], references: [id])
+  cargoCatalogo Cargo?  @relation(fields: [cargoId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
 
-  contratos           ContratoEmpleado[]
-  nominas             Nomina[]
-  novedades           Novedad[]
-  programaciones      Programacion[]
+  contratos      ContratoEmpleado[]
+  nominas        Nomina[]
+  novedades      Novedad[]
+  programaciones Programacion[]
 }
 
 model ContratoEmpleado {
-  id             String         @id @default(uuid())
-  tipoContrato   TipoContrato
-  fechaInicio    DateTime
-  fechaFin       DateTime?
-  estado         EstadoContrato @default(ACTIVO)
-  observacion    String?
-  creadoEn       DateTime       @default(now())
-  actualizadoEn  DateTime       @updatedAt
+  id            String         @id @default(uuid())
+  tipoContrato  TipoContrato
+  fechaInicio   DateTime
+  fechaFin      DateTime?
+  estado        EstadoContrato @default(ACTIVO)
+  observacion   String?
+  creadoEn      DateTime       @default(now())
+  actualizadoEn DateTime       @updatedAt
 
-  empleadoId     String
-  obraId         String
+  empleadoId String
+  obraId     String
 
-  empleado       Empleado       @relation(fields: [empleadoId], references: [id])
-  obra           Obra           @relation(fields: [obraId], references: [id])
+  empleado Empleado @relation(fields: [empleadoId], references: [id])
+  obra     Obra     @relation(fields: [obraId], references: [id])
 
   @@index([empleadoId])
   @@index([obraId])
@@ -152,15 +152,15 @@ model Programacion {
   creadoEn         DateTime           @default(now())
   actualizadoEn    DateTime           @updatedAt
 
-  empleadoId       String
-  turnoId          String
-  obraId           String?
+  empleadoId String
+  turnoId    String
+  obraId     String?
 
-  tipoProgramacion TipoProgramacion   @default(TRABAJO)
+  tipoProgramacion TipoProgramacion @default(TRABAJO)
 
-  empleado         Empleado           @relation(fields: [empleadoId], references: [id])
-  turno            Turno              @relation(fields: [turnoId], references: [id])
-  obra              Obra?              @relation(fields: [obraId], references: [id])
+  empleado Empleado @relation(fields: [empleadoId], references: [id])
+  turno    Turno    @relation(fields: [turnoId], references: [id])
+  obra     Obra?    @relation(fields: [obraId], references: [id])
 
   @@unique([empleadoId, fecha])
   @@index([obraId])
@@ -173,6 +173,7 @@ model Novedad {
   estado        EstadoNovedad    @default(PENDIENTE)
   fecha         DateTime
   cantidad      Decimal?         @db.Decimal(10, 2)
+  remunerada    Boolean?
   observacion   String?
   creadoEn      DateTime         @default(now())
   actualizadoEn DateTime         @updatedAt
@@ -182,38 +183,38 @@ model Novedad {
   revisadoPorId String?
   revisadoEn    DateTime?
 
-  creadoPor     Usuario          @relation("NovedadesCreadas", fields: [creadoPorId], references: [id])
-  empleado      Empleado         @relation(fields: [empleadoId], references: [id])
-  revisadoPor   Usuario?         @relation("NovedadesRevisadas", fields: [revisadoPorId], references: [id])
+  creadoPor   Usuario  @relation("NovedadesCreadas", fields: [creadoPorId], references: [id])
+  empleado    Empleado @relation(fields: [empleadoId], references: [id])
+  revisadoPor Usuario? @relation("NovedadesRevisadas", fields: [revisadoPorId], references: [id])
 }
 
 model Nomina {
-  id                    String       @id @default(uuid())
-  periodoInicio         DateTime
-  periodoFin            DateTime
-  salarioBase           Decimal      @db.Decimal(12, 2)
-  horasExtra            Decimal      @default(0) @db.Decimal(12, 2)
-  recargos              Decimal      @default(0) @db.Decimal(12, 2)
-  bonificaciones        Decimal      @default(0) @db.Decimal(12, 2)
-  descuentos            Decimal      @default(0) @db.Decimal(12, 2)
+  id             String   @id @default(uuid())
+  periodoInicio  DateTime
+  periodoFin     DateTime
+  salarioBase    Decimal  @db.Decimal(12, 2)
+  horasExtra     Decimal  @default(0) @db.Decimal(12, 2)
+  recargos       Decimal  @default(0) @db.Decimal(12, 2)
+  bonificaciones Decimal  @default(0) @db.Decimal(12, 2)
+  descuentos     Decimal  @default(0) @db.Decimal(12, 2)
 
-  auxilioTransporte     Decimal      @default(0) @db.Decimal(12, 2)
-  ingresoBaseCotizacion Decimal      @default(0) @db.Decimal(12, 2)
-  salud                 Decimal      @default(0) @db.Decimal(12, 2)
-  pension               Decimal      @default(0) @db.Decimal(12, 2)
+  auxilioTransporte     Decimal @default(0) @db.Decimal(12, 2)
+  ingresoBaseCotizacion Decimal @default(0) @db.Decimal(12, 2)
+  salud                 Decimal @default(0) @db.Decimal(12, 2)
+  pension               Decimal @default(0) @db.Decimal(12, 2)
 
-  totalDevengado        Decimal      @db.Decimal(12, 2)
-  totalDeducciones      Decimal      @db.Decimal(12, 2)
-  netoPagar             Decimal      @db.Decimal(12, 2)
+  totalDevengado   Decimal @db.Decimal(12, 2)
+  totalDeducciones Decimal @db.Decimal(12, 2)
+  netoPagar        Decimal @db.Decimal(12, 2)
 
-  estado                EstadoNomina @default(PENDIENTE)
-  creadoEn              DateTime     @default(now())
-  actualizadoEn        DateTime     @updatedAt
+  estado        EstadoNomina @default(PENDIENTE)
+  creadoEn      DateTime     @default(now())
+  actualizadoEn DateTime     @updatedAt
 
-  empleadoId            String
-  incapacidad           Decimal      @default(0) @db.Decimal(12, 2)
+  empleadoId  String
+  incapacidad Decimal @default(0) @db.Decimal(12, 2)
 
-  empleado              Empleado     @relation(fields: [empleadoId], references: [id])
+  empleado Empleado @relation(fields: [empleadoId], references: [id])
 
   @@unique([empleadoId, periodoInicio, periodoFin])
 }
@@ -281,6 +282,7 @@ enum TipoNovedad {
   HORA_EXTRA_DOMINICAL_NOCTURNA
   HORA_EXTRA_FESTIVA
   HORA_EXTRA_FESTIVA_NOCTURNA
+  CALAMIDAD_FAMILIAR
 }
 
 enum TipoContrato {

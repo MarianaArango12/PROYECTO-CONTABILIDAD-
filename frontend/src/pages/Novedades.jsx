@@ -83,6 +83,10 @@ const TIPOS_NOVEDAD = {
       label: 'Incapacidad',
     },
     {
+      value: 'CALAMIDAD_FAMILIAR',
+      label: 'Calamidad familiar',
+    },
+    {
       value: 'PERMISO',
       label: 'Permiso',
     },
@@ -113,6 +117,7 @@ const NOMBRES_TIPOS = {
   LLEGADA_TARDE: 'Llegada tarde',
   RETIRO_ANTICIPADO: 'Retiro anticipado',
   CAMBIO_PUESTO: 'Cambio de puesto',
+  CALAMIDAD_FAMILIAR: 'Calamidad familiar',
 
   HORA_EXTRA: 'Hora extra diurna',
   HORA_EXTRA_NOCTURNA: 'Hora extra nocturna',
@@ -329,23 +334,68 @@ function Novedades() {
     }
   }
 
+
+
   async function manejarAprobar(id) {
-    const confirmar = window.confirm(
-      '¿Estás seguro de que deseas aprobar esta novedad?'
+    const novedad = novedades.find(
+      (item) => item.id === id
     );
 
-    if (!confirmar) {
+    if (!novedad) {
+      setError('No se encontró la novedad.');
       return;
+    }
+
+    let remunerada;
+
+    if (novedad.tipo === 'CALAMIDAD_FAMILIAR') {
+      const decision = window.prompt(
+        'APROBAR CALAMIDAD FAMILIAR\n\n' +
+        'Escribe una de estas dos opciones:\n\n' +
+        'REMUNERADA: se aprueba y los días se reconocen como pagados.\n\n' +
+        'NO REMUNERADA: se aprueba, pero los días no se reconocen como pagados.\n\n' +
+        'Escribe REMUNERADA o NO REMUNERADA:'
+      );
+
+      if (decision === null) {
+        return;
+      }
+
+      const respuesta = decision.trim().toUpperCase();
+
+      if (
+        respuesta !== 'REMUNERADA' &&
+        respuesta !== 'NO REMUNERADA'
+      ) {
+        setError(
+          'Opción inválida. Escribe REMUNERADA o NO REMUNERADA.'
+        );
+        return;
+      }
+
+      remunerada = respuesta === 'REMUNERADA';
+    } else {
+      const confirmar = window.confirm(
+        '¿Estás seguro de que deseas aprobar esta novedad?'
+      );
+
+      if (!confirmar) {
+        return;
+      }
     }
 
     try {
       setError('');
       setMensaje('');
 
-      await aprobarNovedad(id);
+      await aprobarNovedad(id, remunerada);
 
       setMensaje(
-        'La novedad fue aprobada correctamente.'
+        novedad.tipo === 'CALAMIDAD_FAMILIAR'
+          ? `Calamidad familiar aprobada como ${
+              remunerada ? 'remunerada' : 'no remunerada'
+            }.`
+          : 'La novedad fue aprobada correctamente.'
       );
 
       await cargarDatos();
@@ -756,17 +806,22 @@ function Novedades() {
                         {novedad.cantidad ?? '-'}
                       </td>
 
-                      <td>
-                        <span
-                          className={`estado ${obtenerClaseEstado(
-                            novedad.estado
-                          )}`}
-                        >
-                          {formatearEstado(
-                            novedad.estado
-                          )}
-                        </span>
-                      </td>
+
+                        <td>
+                          <span
+                            className={`estado ${obtenerClaseEstado(
+                              novedad.estado
+                            )}`}
+                          >
+                            {novedad.tipo === 'CALAMIDAD_FAMILIAR' &&
+                            novedad.estado === 'APROBADA'
+                              ? novedad.remunerada === true
+                                ? 'Aprobada - Remunerada'
+                                : 'Aprobada - No remunerada'
+                              : formatearEstado(novedad.estado)}
+                          </span>
+                        </td>
+
 
                       <td>
                         {novedad.observacion || '-'}

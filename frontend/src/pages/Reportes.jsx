@@ -3,7 +3,10 @@ import { useEffect, useState } from 'react';
 import { obtenerEmpleados } from '../services/empleados.service.js';
 import { obtenerProgramaciones } from '../services/programacion.service.js';
 import { obtenerNovedades } from '../services/novedades.service.js';
-import { obtenerNominas } from '../services/nomina.service.js';
+import {
+  obtenerNominas,
+  obtenerNomina,
+} from '../services/nomina.service.js';
 
 function Reportes() {
   const [reporteSeleccionado, setReporteSeleccionado] = useState(null);
@@ -104,15 +107,22 @@ function Reportes() {
         );
       }
 
-      if (id === 'nomina') {
-        const datos = await obtenerNominas();
+    if (id === 'nomina') {
+      const datos = await obtenerNominas();
 
-        setNominas(
-          Array.isArray(datos)
-            ? datos
-            : datos?.nominas || []
-        );
-      }
+      const listaNominas = Array.isArray(datos)
+        ? datos
+        : datos?.nominas || [];
+
+      const nominasCompletas = await Promise.all(
+        listaNominas.map((nomina) =>
+          obtenerNomina(nomina.id)
+        )
+      );
+
+      setNominas(nominasCompletas);
+    }
+
     } catch (error) {
       console.error(error);
       setError(
@@ -134,19 +144,37 @@ function Reportes() {
     });
   }
 
-  function formatearFecha(fecha) {
-    if (!fecha) {
-      return '-';
+
+   function formatearFecha(fecha) {
+      if (!fecha) {
+        return '-';
+      }
+
+      const textoFecha =
+        fecha instanceof Date
+          ? fecha.toISOString().slice(0, 10)
+          : String(fecha).slice(0, 10);
+
+      const partes = textoFecha.split('-');
+
+      if (partes.length !== 3) {
+        return '-';
+      }
+
+      const [anio, mes, dia] = partes.map(Number);
+      const fechaFormateada = new Date(anio, mes - 1, dia);
+
+      if (
+        Number.isNaN(fechaFormateada.getTime()) ||
+        fechaFormateada.getFullYear() !== anio ||
+        fechaFormateada.getMonth() !== mes - 1 ||
+        fechaFormateada.getDate() !== dia
+      ) {
+        return '-';
+      }
+
+      return fechaFormateada.toLocaleDateString('es-CO');
     }
-
-    const fechaFormateada = new Date(fecha);
-
-    if (Number.isNaN(fechaFormateada.getTime())) {
-      return '-';
-    }
-
-    return fechaFormateada.toLocaleDateString('es-CO');
-  }
 
   function obtenerNombreCargo(empleado) {
     return (
@@ -219,6 +247,7 @@ function Reportes() {
       DOMINICAL: 'Dominical',
       FESTIVO: 'Festivo',
       CAMBIO_TURNO: 'Cambio de turno',
+      CALAMIDAD_FAMILIAR: 'Calamidad familiar',
       LLEGADA_TARDE: 'Llegada tarde',
       INCAPACIDAD: 'Incapacidad',
       SUSPENSION: 'Suspensión',
@@ -592,7 +621,12 @@ function Reportes() {
                               novedad.estado
                             )}`}
                           >
-                            {novedad.estado || '-'}
+                            {novedad.tipo === 'CALAMIDAD_FAMILIAR' &&
+                            novedad.estado === 'APROBADA'
+                              ? novedad.remunerada === true
+                                ? 'Aprobada - Remunerada'
+                                : 'Aprobada - No remunerada'
+                              : novedad.estado || '-'}
                           </span>
                         </td>
 
@@ -649,6 +683,7 @@ function Reportes() {
                       <th>Recargos</th>
                       <th>Bonificaciones</th>
                       <th>Descuentos</th>
+                      <th>Descuento por calamidad familiar</th>
                       <th>Total devengado</th>
                       <th>Neto a pagar</th>
                       <th>Estado</th>
@@ -709,6 +744,12 @@ function Reportes() {
                         <td>
                           {formatearDinero(
                             nomina.descuentos
+                          )}
+                        </td>
+
+                        <td>
+                          {formatearDinero(
+                            nomina.descuentoCalamidad
                           )}
                         </td>
 

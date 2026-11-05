@@ -106,46 +106,235 @@ function aprobada(novedad) {
   return !novedad.estado || novedad.estado === "APROBADA";
 }
 
-export function tieneIncapacidad(fecha, novedades) {
+export function tieneIncapacidad(fecha, novedades = [], fechasIncapacidad = []) {
   const dia = textoFecha(fecha);
+
+  if (fechasIncapacidad.includes(dia)) {
+    return true;
+  }
+
   return novedades.some(
-    (novedad) => aprobada(novedad) && novedad.tipo === "INCAPACIDAD" && textoFecha(novedad.fecha) === dia,
+    (novedad) =>
+      aprobada(novedad) &&
+      novedad.tipo === "INCAPACIDAD" &&
+      textoFecha(novedad.fecha) === dia
   );
 }
 
-export function calcularIncapacidades(novedades, salarioMensual) {
+export function tieneCalamidad(fecha, novedades = []) {
+  const dia = textoFecha(fecha);
+
+  return novedades.some((novedad) => {
+    if (
+      !aprobada(novedad) ||
+      novedad.tipo !== "CALAMIDAD_FAMILIAR"
+    ) {
+      return false;
+    }
+
+    const cantidad = Number(novedad.cantidad ?? 1);
+
+    if (!Number.isInteger(cantidad) || cantidad <= 0) {
+      return false;
+    }
+
+    const fechaInicial = fechaUtc(textoFecha(novedad.fecha));
+
+    for (let i = 0; i < cantidad; i++) {
+      const fechaCalamidad = new Date(fechaInicial);
+      fechaCalamidad.setUTCDate(
+        fechaCalamidad.getUTCDate() + i
+      );
+
+      if (textoFecha(fechaCalamidad) === dia) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+}
+
+export function calcularIncapacidades(
+  novedades,
+  salarioMensual,
+  periodoInicio,
+  periodoFin
+) {
   const valorDia = salarioMensual / 30;
-  const fechas = novedades
-    .filter((novedad) => aprobada(novedad) && novedad.tipo === "INCAPACIDAD")
-    .map((novedad) => textoFecha(novedad.fecha))
-    .sort();
-  if (!Number.isFinite(salarioMensual) || salarioMensual <= 0 || fechas.length === 0) {
+
+  if (
+    !Number.isFinite(salarioMensual) ||
+    salarioMensual <= 0 ||
+    !periodoInicio ||
+    !periodoFin
+  ) {
     return { cantidadDias: 0, valorDia, valorTotal: 0, detalle: [] };
   }
- const parametrosIncapacidad =
-  PARAMETROS_LABORALES.incapacidad?.enfermedadGeneral ?? {};
+
+  const inicio = textoFecha(periodoInicio);
+  const fin = textoFecha(periodoFin);
+  const fechasPorDia = new Map();
+
+  const incapacidades = novedades
+    .filter(
+      (novedad) =>
+        aprobada(novedad) &&
+        novedad.tipo === "INCAPACIDAD"
+    )
+    .sort(
+      (a, b) =>
+        textoFecha(a.fecha).localeCompare(textoFecha(b.fecha))
+    );
+
+  for (const novedad of incapacidades) {
+    const cantidad = Number(novedad.cantidad ?? 1);
+
+    if (!Number.isInteger(cantidad) || cantidad <= 0) {
+      continue;
+    }
+
+    const fechaInicial = fechaUtc(textoFecha(novedad.fecha));
+
+    for (let i = 0; i < cantidad; i++) {
+      const fecha = new Date(fechaInicial);
+      fecha.setUTCDate(fecha.getUTCDate() + i);
+
+      const fechaTexto = textoFecha(fecha);
+
+      if (fechaTexto < inicio || fechaTexto > fin) {
+        continue;
+      }
+
+      if (!fechasPorDia.has(fechaTexto)) {
+        fechasPorDia.set(fechaTexto, {
+          fecha: fechaTexto,
+          dia: i + 1,
+        });
+      }
+    }
+  }
+
+  const parametrosIncapacidad =
+    PARAMETROS_LABORALES.incapacidad?.enfermedadGeneral ?? {};
+
   const dias1a90 = parametrosIncapacidad.dias1a90 ?? 2 / 3;
   const dias91a180 = parametrosIncapacidad.dias91a180 ?? 0.5;
-  const detalle = [];
-  let dia = 0;
-  let anterior = null;
-  for (const fecha of fechas) {
-    const sigue = anterior !== null && Math.round((fechaUtc(fecha) - fechaUtc(anterior)) / 86_400_000) === 1;
-    dia = sigue ? dia + 1 : 1;
-    const porcentaje = dia <= 90 ? dias1a90 : dia <= 180 ? dias91a180 : 0;
-    detalle.push({ fecha, dia, porcentaje, valor: valorDia * porcentaje });
-    anterior = fecha;
-  }
+
+  const detalle = [...fechasPorDia.values()]
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
+    .map((item) => {
+      const porcentaje =
+        item.dia <= 90
+          ? dias1a90
+          : item.dia <= 180
+            ? dias91a180
+            : 0;
+
+      return {
+        fecha: item.fecha,
+        dia: item.dia,
+        porcentaje,
+        valor: valorDia * porcentaje,
+      };
+    });
+
   return {
     cantidadDias: detalle.length,
     valorDia,
-    valorTotal: detalle.reduce((total, item) => total + item.valor, 0),
+    valorTotal: detalle.reduce(
+      (total, item) => total + item.valor,
+      0
+    ),
     detalle,
   };
 }
 
+export function calcularDescuentoCalamidad(
+  novedades,
+  salarioMensual,
+  periodoInicio,
+  periodoFin,
+  fechasIncapacidad = []
+) {
+  const valorDia = Number(salarioMensual) / 30;
 
-export function analizarProgramaciones(programaciones, segundo = [], tercero) {
+  if (
+    !Number.isFinite(valorDia) ||
+    valorDia <= 0 ||
+    !periodoInicio ||
+    !periodoFin
+  ) {
+    return {
+      cantidadDias: 0,
+      valorDia,
+      valorTotal: 0,
+      detalle: [],
+    };
+  }
+
+  const inicio = textoFecha(periodoInicio);
+  const fin = textoFecha(periodoFin);
+  const fechas = new Map();
+
+  const calamidades = novedades.filter(
+    (novedad) =>
+      aprobada(novedad) &&
+      novedad.tipo === "CALAMIDAD_FAMILIAR" &&
+      novedad.remunerada === false
+  );
+
+  for (const novedad of calamidades) {
+    const cantidad = Number(novedad.cantidad ?? 1);
+
+    if (!Number.isInteger(cantidad) || cantidad <= 0) {
+      continue;
+    }
+
+    const fechaInicial = fechaUtc(textoFecha(novedad.fecha));
+
+    for (let i = 0; i < cantidad; i++) {
+      const fecha = new Date(fechaInicial);
+      fecha.setUTCDate(fecha.getUTCDate() + i);
+
+      const dia = textoFecha(fecha);
+
+      if (
+        dia < inicio ||
+        dia > fin ||
+        fechasIncapacidad.includes(dia)
+      ) {
+        continue;
+      }
+
+      fechas.set(dia, {
+        fecha: dia,
+        valor: valorDia,
+      });
+    }
+  }
+
+  const detalle = [...fechas.values()].sort(
+    (a, b) => a.fecha.localeCompare(b.fecha)
+  );
+
+  return {
+    cantidadDias: detalle.length,
+    valorDia,
+    valorTotal: detalle.reduce(
+      (total, item) => total + item.valor,
+      0
+    ),
+    detalle,
+  };
+}
+
+export function analizarProgramaciones(
+  programaciones,
+  segundo = [],
+  tercero,
+  fechasIncapacidad = []
+) {
   const novedades = Array.isArray(tercero)
     ? tercero
     : Array.isArray(segundo)
@@ -183,15 +372,23 @@ export function analizarProgramaciones(programaciones, segundo = [], tercero) {
       continue;
     }
 
-    if (tieneIncapacidad(fecha, novedades)) {
-      detalle.push({
-        fecha,
-        tipoProgramacion: "TRABAJO",
-        horasTrabajadas: 0,
-        incapacidad: true,
-      });
-      continue;
-    }
+    if (
+        tieneIncapacidad(fecha, novedades, fechasIncapacidad) ||
+        tieneCalamidad(fecha, novedades)
+      ) {
+        detalle.push({
+          fecha,
+          tipoProgramacion: "TRABAJO",
+          horasTrabajadas: 0,
+          incapacidad: tieneIncapacidad(
+            fecha,
+            novedades,
+            fechasIncapacidad
+          ),
+          calamidad: tieneCalamidad(fecha, novedades),
+        });
+        continue;
+      }
 
     let trabajadas = 0;
 
@@ -217,12 +414,14 @@ export function analizarProgramaciones(programaciones, segundo = [], tercero) {
         acumuladas += horasOrdinariasBloque;
 
         if (descansoObligatorio && bloque.nocturna) {
+          recargoFestivo += horasOrdinariasBloque;
           recargoNocturnoFestivo += horasOrdinariasBloque;
         } else if (descansoObligatorio) {
           recargoFestivo += horasOrdinariasBloque;
         } else if (bloque.nocturna) {
           recargoNocturno += horasOrdinariasBloque;
         }
+
       }
 
       // Clasificar el excedente como horas extras.
@@ -325,6 +524,47 @@ export async function obtenerNovedadesAprobadas(empleadoId, periodoInicio, perio
     },
     orderBy: { fecha: "asc" },
   });
+}
+
+export async function obtenerHistorialIncapacidades(
+  empleadoId,
+  periodoFin
+) {
+  return prisma.novedad.findMany({
+    where: {
+      empleadoId,
+      estado: "APROBADA",
+      tipo: "INCAPACIDAD",
+      fecha: {
+        lte: diaUtc(periodoFin, true),
+      },
+    },
+    orderBy: {
+      fecha: "asc",
+    },
+  });
+}
+
+export async function obtenerHistorialCalamidades(
+  empleadoId,
+  periodoFin
+) {
+
+  const resultados = await prisma.novedad.findMany({
+    where: {
+      empleadoId,
+      estado: "APROBADA",
+      tipo: "CALAMIDAD_FAMILIAR",
+      fecha: {
+        lte: diaUtc(periodoFin, true),
+      },
+    },
+    orderBy: {
+      fecha: "asc",
+    },
+  });
+
+  return resultados;
 }
 
 export async function obtenerProgramacionesCumplidas(empleadoId, periodoInicio, periodoFin) {
